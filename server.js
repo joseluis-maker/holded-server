@@ -8,7 +8,7 @@ const HOLDED_API_KEY = process.env.HOLDED_API_KEY;
 app.get('/crear-documento', async (req, res) => {
   try {
     const { nombre, servicio_id, tipo_documento, iva, notas } = req.query;
-    const endpoint = tipo_documento === 'invoice' ? 'invoices' : tipo_documento === 'estimate' ? 'estimates' : 'proformas';
+    const endpoint = tipo_documento === 'invoice' ? 'invoice' : tipo_documento === 'estimate' ? 'estimate' : 'proforma';
     const response = await axios.post(
       'https://api.holded.com/api/invoicing/v1/documents/' + endpoint,
       {
