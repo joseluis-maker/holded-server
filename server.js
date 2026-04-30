@@ -471,6 +471,13 @@ async function rellenarMI(rutaPdf, datos, tipo, datosFamiliar = null) {
     const ecValF = mapaECF[ecF];
     if (ecValF) try { form.getRadioGroup('DS_EC').select(ecValF); } catch(e) {}
 
+    // Representante - Jose Luis Robles Criado
+    setText('DR_APELLIDOS', 'ROBLES CRIADO');
+    setText('DR_NRS',       'JOSE LUIS');
+    setText('DR_TFNO',      '619934302');
+    setText('DR_EMAIL',     'INFO@ROBLESEXTRANJERIA.COM');
+    setText('DR_DNI',       '5326459K');
+
     // Datos del familiar que da derecho
     if (datosFamiliar) {
       setText('DFD_PASAP',  datosFamiliar.pasaporte);
@@ -516,6 +523,13 @@ async function rellenarMI(rutaPdf, datos, tipo, datosFamiliar = null) {
     const mapaECT = { 'soltero':'S','single':'S','casado':'C','married':'C','viudo':'V','widowed':'V','divorciado':'D','divorced':'D','separado':'Sp','separated':'Sp' };
     const ecValT = mapaECT[ecT];
     if (ecValT) try { form.getRadioGroup('DEX_EC').select(ecValT); } catch(e) {}
+
+    // Representante - Jose Luis Robles Criado
+    setText('DR_APELLIDOS', 'ROBLES CRIADO');
+    setText('DR_NOMBRE',    'JOSE LUIS');
+    setText('DR_TFNO',      '619934302');
+    setText('DR_EMAIL',     'INFO@ROBLESEXTRANJERIA.COM');
+    setText('DR_DNI',       '5326459K');
   }
 
   form.flatten();
