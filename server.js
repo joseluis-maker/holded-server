@@ -301,6 +301,7 @@ const FORMULARIOS = {
   'EX32': 'EX32. Formulario autorización de residencia por circunstancias excepcionales por razón de arraigo extraordinario (DA21º). Editable.pdf',
   'MI-F': 'MI_F ABRIL_2021_v12_editable.pdf',
   'MI-T': 'MI_T ABRIL_2021_v10_editable.pdf',
+  'DESG': 'DESG_REPRES.pdf',
 };
 
 // Mapeo EX13: campo -> nombre HubSpot
@@ -425,6 +426,68 @@ function prepararDatos(p) {
     email: 'INFO@ROBLESEXTRANJERIA.COM',
   };
 
+
+
+async function rellenarDESG(rutaPdf, datos) {
+  const pdfBytes = fs.readFileSync(rutaPdf);
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+  const form = pdfDoc.getForm();
+  const set = (c, v) => { try { form.getTextField(c).setText(v || ''); } catch(e) {} };
+
+  // Datos del cliente
+  set('Texto1',  datos.firstname);        // Nombre
+  set('Texto2',  datos.apellido1);        // 1er Apellido
+  set('Texto3',  datos.apellido2);        // 2º Apellido
+  set('Texto4',  datos.nacionalidad);     // Nacionalidad
+  set('Texto5',  datos.nie_letra + datos.nie_numero + datos.nie_control); // NIE
+  set('Texto6',  datos.pasaporte);        // Pasaporte
+  set('Texto7',  datos.fecha_dia);        // Dia nac
+  set('Texto8',  datos.fecha_mes);        // Mes nac
+  set('Texto9',  datos.fecha_anio);       // Año nac
+  set('Texto10', datos.lugar_de_nacimiento); // Localidad nac
+  set('Texto11', datos.pais_de_nacimiento);  // Pais nac
+  set('Texto12', datos.nombre_padre);     // Nombre padre
+  set('Texto13', datos.nombre_madre);     // Nombre madre
+  set('Texto14', datos.address);          // Domicilio
+  set('Texto15', datos.numero_calle);     // Nº
+  set('Texto16', datos.piso_puerta);      // Piso
+  set('Texto17', datos.city);             // Localidad
+  set('Texto18', datos.zip);              // CP
+  set('Texto19', datos.state);            // Provincia
+  set('Texto20', datos.phone);            // Telefono
+  set('Texto21', datos.email);            // Email
+
+  // Datos fijos del representante - Jose Luis Robles Criado
+  set('Texto22', '5326459K');             // DNI/NIF/NIE representante
+  set('Texto23', 'JOSE LUIS');            // Nombre rep
+  set('Texto25', 'ROBLES');              // 1er Apellido rep
+  set('Texto26', 'CRIADO');             // 2º Apellido rep
+  set('Texto28', 'CALLE VELAZQUEZ');     // Domicilio rep
+  set('Texto29', '126');                 // Nº rep
+  set('Texto30', '6D');                  // Piso rep
+  set('Texto31', 'MADRID');             // Localidad rep
+  set('Texto32', '28006');              // CP rep
+  set('Texto33', 'MADRID');             // Provincia rep
+  set('Texto34', '619934302');          // Telefono rep
+  set('Texto35', 'INFO@ROBLESEXTRANJERIA.COM'); // Email rep
+
+  // Estado civil checkboxes
+  try {
+    const allFields = form.getFields();
+    const checkboxes = allFields.filter(f => f.constructor.name === 'PDFCheckBox')
+      .map(f => f.getName()).sort((a,b) => parseInt(a.replace(/\D/g,'')) - parseInt(b.replace(/\D/g,'')));
+    const ecCBs = checkboxes.slice(0, 5);
+    const ec = datos.estado_civil?.toLowerCase();
+    const mapaEC = { 's': 0, 'soltero': 0, 'c': 1, 'casado': 1, 'v': 2, 'viudo': 2, 'd': 3, 'divorciado': 3, 'sp': 4, 'separado': 4 };
+    const idx = mapaEC[ec];
+    if (idx !== undefined) try { form.getCheckBox(ecCBs[idx])?.check(); } catch(e) {}
+  } catch(e) {}
+
+
+
+  // No flatten para DESG - mantener campos editables
+  return await pdfDoc.save();
+}
 
 async function rellenarMI(rutaPdf, datos, tipo, datosFamiliar = null) {
   const pdfBytes = fs.readFileSync(rutaPdf);
@@ -724,7 +787,9 @@ app.get('/rellenar-formulario', async (req, res) => {
     const rutaPdf = path.join(__dirname, 'formularios', FORMULARIOS[formulario]);
 
     let pdfBytes;
-    if (formulario === 'MI-F' || formulario === 'MI-T') {
+    if (formulario === 'DESG') {
+      pdfBytes = await rellenarDESG(rutaPdf, datos);
+    } else if (formulario === 'MI-F' || formulario === 'MI-T') {
       pdfBytes = await rellenarMI(rutaPdf, datos, formulario, datosFamiliar);
     } else {
       pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante, formulario, datosFamiliar);
