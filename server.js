@@ -251,9 +251,32 @@ const fs = require('fs');
 const path = require('path');
 
 const FORMULARIOS = {
-  'EX01': 'EX01. Formulario autorización de residencia temporal no lucrativa.pdf',
+  'EX00': 'EX00. Formulario autorización de estancia de larga duración. Editable.pdf',
+  'EX01': 'EX01. Formulario autorización de residencia temporal no lucrativa. Editable.pdf',
+  'EX02': 'EX02. Formulario autorización de residencia temporal por reagrupación familiar editable.pdf',
+  'EX03': 'EX03. Formulario autorización de residencia temporal y trabajo por cuenta ajena o autorización de trabajo por cuenta ajena. Editable.pdf',
+  'EX04': 'EX04. Formulario autorización de residencia para pácticas. Editable.pdf',
+  'EX06': 'EX06. Formulario autorización de residencia y trabajo para actividades temporada. Editable.pdf',
+  'EX07': 'EX07. Formulario  autorización de residencia temporal y trabajo por cuenta propia. Editable.pdf',
+  'EX09': 'EX09. Formulario autorización de residencia temporal con excepción de la autorización de trabajo. Editable.pdf',
+  'EX10': 'EX10. Formulario autorización de residencia por circunstancias excepcionales - editable.pdf',
+  'EX11': 'EX11. Formulario autorización de residencia de larga duración o de larga duración-UE. Editable.pdf',
   'EX13': 'EX13. Formulario autorización de regreso. Editable.pdf',
+  'EX16': 'EX16. Formulario solicitud cédula de inscripción o título de viaje. Editable.pdf',
+  'EX17': 'EX17. Formulario solicitud Tarjeta de Identidad de Extranjero. Editable.pdf',
   'EX18': 'EX18. Formulario inscripción en el RCE, residencia ciudadano de la UE. Editable.pdf',
+  'EX19': 'EX19. Formulario tarjeta de residencia de familiar de ciudadano de la UE. Editable.pdf',
+  'EX20': 'EX20. Formulario residencia artículo 50 TUE para nacionales del Reino Unido. Editable.pdf',
+  'EX21': 'EX21. Formulario residencia artículo 50 TUE para 3ºs países familiares nacionales Reino Unido. Editable.pdf',
+  'EX22': 'EX22. Formulario permiso artículo 50 TUE para trabajador fronterizo del Reino Unido. Editable.pdf',
+  'EX23': 'EX23. Formulario solicitud tarjeta (art 18.4 del Acuerdo de Retirada). Editable.pdf',
+  'EX24': 'EX24. Formulario autorización de residencia temporal de familiares de personas con nacionalidad española. Editable.pdf',
+  'EX25': 'EX25. Formulario autorización de residencia temporal y desplazamiento temporal de menores extranjeros - editable.pdf',
+  'EX26': 'EX26. Formulario de solicitud modificación de autorización de residencia o estancia. Editable.pdf',
+  'EX28': 'EX28. Formulario solicitud de aplicación de la DT 2º RD 1155-2024. Editable.pdf',
+  'EX29': 'EX29. Formulario solicitud de prórroga de estancia de corta duración. Editable.pdf',
+  'EX31': 'EX31. Formulario autorización de residencia por circunstancias excepcionales por razón de arraigo. Solicitantes PI (DA20º). Editable_.pdf',
+  'EX32': 'EX32. Formulario autorización de residencia por circunstancias excepcionales por razón de arraigo extraordinario (DA21º). Editable.pdf',
 };
 
 // Mapeo EX13: campo -> nombre HubSpot
@@ -466,30 +489,40 @@ async function rellenarEX01(rutaPdf, datos) {
 
   // Coordenadas calibradas sobre EX01 (y invertida: alto pagina - y_visual)
   const alto = page.getHeight();
-  const inv = (y) => alto - y;
+  const inv = (y) => alto - y - 2;
 
-  escribir(datos.pasaporte,           96,  inv(218));
-  escribir(datos.nie_letra,          324,  inv(218));
-  escribir(datos.nie_numero,         359,  inv(218));
-  escribir(datos.nie_control,        514,  inv(218));
-  escribir(datos.apellido1,           91,  inv(239));
-  escribir(datos.apellido2,          385,  inv(239));
-  escribir(datos.firstname,           79,  inv(257));
-  escribir(datos.fecha_dia,          134,  inv(276));
-  escribir(datos.fecha_mes,          162,  inv(276));
-  escribir(datos.fecha_anio,         189,  inv(276));
-  escribir(datos.lugar_de_nacimiento,250,  inv(276));
-  escribir(datos.nacionalidad,        95,  inv(293));
-  escribir(datos.nombre_padre,       114,  inv(312));
-  escribir(datos.nombre_madre,       371,  inv(312));
-  escribir(datos.address,            121,  inv(330));
-  escribir(datos.numero_calle,       489,  inv(330));
-  escribir(datos.piso_puerta,        535,  inv(330));
-  escribir(datos.city,                89,  inv(348));
-  escribir(datos.zip,                345,  inv(348));
-  escribir(datos.state,              458,  inv(348));
-  escribir(datos.phone,              107,  inv(366));
-  escribir(datos.email,              296,  inv(366));
+  // Fila PASAPORTE y NIE (y=169)
+  escribir(datos.pasaporte,          120,  inv(169));
+  escribir(datos.nie_letra,          360,  inv(169));
+  escribir(datos.nie_numero,         385,  inv(169));
+  escribir(datos.nie_control,        510,  inv(169));
+  // Fila apellidos (y=187)
+  escribir(datos.apellido1,          120,  inv(187));
+  escribir(datos.apellido2,          390,  inv(187));
+  // Fila nombre y sexo (y=205)
+  escribir(datos.firstname,          100,  inv(205));
+  // Fila fecha nacimiento (y=226)
+  escribir(datos.fecha_dia,          130,  inv(226));
+  escribir(datos.fecha_mes,          158,  inv(226));
+  escribir(datos.fecha_anio,         186,  inv(226));
+  escribir(datos.lugar_de_nacimiento,260,  inv(226));
+  escribir(datos.pais_de_nacimiento, 440,  inv(226));
+  // Fila nacionalidad y estado civil (y=242)
+  escribir(datos.nacionalidad,       120,  inv(242));
+  // Fila padre y madre (y=260)
+  escribir(datos.nombre_padre,       120,  inv(260));
+  escribir(datos.nombre_madre,       370,  inv(260));
+  // Fila domicilio (y=279)
+  escribir(datos.address,            120,  inv(279));
+  escribir(datos.numero_calle,       480,  inv(279));
+  escribir(datos.piso_puerta,        530,  inv(279));
+  // Fila localidad (y=297)
+  escribir(datos.city,               110,  inv(297));
+  escribir(datos.zip,                340,  inv(297));
+  escribir(datos.state,              430,  inv(297));
+  // Fila telefono y email (y=315)
+  escribir(datos.phone,              120,  inv(315));
+  escribir(datos.email,              300,  inv(315));
 
   return await pdfDoc.save();
 }
@@ -514,13 +547,7 @@ app.get('/rellenar-formulario', async (req, res) => {
     const rutaPdf = path.join(__dirname, 'formularios', FORMULARIOS[formulario]);
 
     let pdfBytes;
-    if (formulario === 'EX01') {
-      pdfBytes = await rellenarEX01(rutaPdf, datos);
-    } else if (formulario === 'EX13') {
-      pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante);
-    } else if (formulario === 'EX18') {
-      pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX18, datos, conRepresentante);
-    }
+    pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante);
 
     const nombre = `${formulario}_${datos.apellido1}_${datos.firstname}.pdf`.replace(/\s+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
