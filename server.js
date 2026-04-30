@@ -261,6 +261,16 @@ app.get('/contactos-asociados', async (req, res) => {
   }
 });
 
+app.get('/test-python', (req, res) => {
+  try {
+    const { execSync } = require('child_process');
+    const v = execSync('python3 --version').toString().trim();
+    res.json({ python: v, status: 'ok' });
+  } catch(e) {
+    res.json({ python: 'no disponible', error: e.message });
+  }
+});
+
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Servidor corriendo en puerto ' + PORT));
