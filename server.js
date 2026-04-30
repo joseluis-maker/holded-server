@@ -302,6 +302,7 @@ const FORMULARIOS = {
   'MI-F': 'MI_F ABRIL_2021_v12_editable.pdf',
   'MI-T': 'MI_T ABRIL_2021_v10_editable.pdf',
   'DESG': 'DESG_REPRES.pdf',
+  'DESG2': 'DESIGINACIO_N_DE__REPRESENTANTE.pdf',
 };
 
 // Mapeo EX13: campo -> nombre HubSpot
@@ -427,6 +428,63 @@ function prepararDatos(p) {
   };
 
 
+
+
+async function rellenarDESG2(rutaPdf, datos) {
+  const pdfBytes = fs.readFileSync(rutaPdf);
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+  const pages = pdfDoc.getPages();
+  const page = pages[0];
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const size = 8;
+  const color = rgb(0, 0, 0);
+  const alto = page.getHeight();
+  const inv = (y) => alto - y - 8;
+
+  const escribir = (texto, x, y) => {
+    if (!texto) return;
+    page.drawText(String(texto).toUpperCase(), { x, y: inv(y), size, font, color });
+  };
+
+  // Datos del cliente (sección superior)
+  escribir(datos.firstname,           150,  137);
+  escribir(datos.apellido1,           310,  137);
+  escribir(datos.apellido2,           480,  137);
+  escribir(datos.nacionalidad,        150,  155);
+  escribir(datos.nie_letra + datos.nie_numero + datos.nie_control, 310, 155);
+  escribir(datos.pasaporte,           460,  155);
+  escribir(datos.fecha_dia,           165,  173);
+  escribir(datos.fecha_mes,           190,  173);
+  escribir(datos.fecha_anio,          215,  173);
+  escribir(datos.lugar_de_nacimiento, 310,  173);
+  escribir(datos.pais_de_nacimiento,  480,  173);
+  escribir(datos.nombre_padre,        150,  191);
+  escribir(datos.nombre_madre,        310,  191);
+  escribir(datos.address,             150,  207);
+  escribir(datos.numero_calle,        490,  207);
+  escribir(datos.piso_puerta,         540,  207);
+  escribir(datos.city,                150,  223);
+  escribir(datos.zip,                 390,  223);
+  escribir(datos.state,               460,  223);
+  escribir(datos.phone,               150,  240);
+  escribir(datos.email,               310,  240);
+
+  // Datos fijos del representante (sección inferior)
+  escribir('5326459K',                150,  378);
+  escribir('JOSE LUIS',               150,  396);
+  escribir('ROBLES',                  310,  396);
+  escribir('CRIADO',                  480,  396);
+  escribir('CALLE VELAZQUEZ',          150,  412);
+  escribir('126',                     490,  412);
+  escribir('6D',                      540,  412);
+  escribir('MADRID',                  150,  429);
+  escribir('28006',                   390,  429);
+  escribir('MADRID',                  460,  429);
+  escribir('619934302',               150,  445);
+  escribir('INFO@ROBLESEXTRANJERIA.COM', 310, 445);
+
+  return await pdfDoc.save();
+}
 
 async function rellenarDESG(rutaPdf, datos) {
   const pdfBytes = fs.readFileSync(rutaPdf);
@@ -794,7 +852,9 @@ app.get('/rellenar-formulario', async (req, res) => {
     const rutaPdf = path.join(__dirname, 'formularios', FORMULARIOS[formulario]);
 
     let pdfBytes;
-    if (formulario === 'DESG') {
+    if (formulario === 'DESG2') {
+      pdfBytes = await rellenarDESG2(rutaPdf, datos);
+    } else if (formulario === 'DESG') {
       pdfBytes = await rellenarDESG(rutaPdf, datos);
     } else if (formulario === 'MI-F' || formulario === 'MI-T') {
       pdfBytes = await rellenarMI(rutaPdf, datos, formulario, datosFamiliar);
