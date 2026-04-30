@@ -13,6 +13,9 @@ app.use((req, res, next) => {
 
 const HOLDED_API_KEY = process.env.HOLDED_API_KEY;
 const HUBSPOT_TOKEN = process.env.HUBSPOT_TOKEN;
+const BANCO_SANTANDER = '68dbf9908bdfe70bf00ddc20';
+const BANCO_BBVA = '68f0dd9e1ba2fe44dd0b5be0';
+const EFECTIVO = '69f2c569999ef9f00500a934';
 
 async function buscarContactoHolded(email, nombre) {
   try {
@@ -68,11 +71,7 @@ app.get('/crear-documento', async (req, res) => {
     const { contactId, contactName } = await buscarContactoHolded(email, nombre);
 
     let lineas = [];
-    try {
-      lineas = JSON.parse(itemsRaw || '[]');
-    } catch (e) {
-      lineas = [];
-    }
+    try { lineas = JSON.parse(itemsRaw || '[]'); } catch (e) {}
 
     const items = lineas.map(l => ({
       serviceId: l.servicio,
@@ -108,22 +107,74 @@ app.get('/crear-documento', async (req, res) => {
     const docId = response.data.id;
     const tipoLabel = tipo_documento === 'invoice' ? 'Factura' : tipo_documento === 'estimate' ? 'Presupuesto' : 'Proforma';
     const holdedUrl = 'https://app.holded.com/sales/revenue#open:' + endpoint + '-' + docId;
+    const pagoUrl = 'https://holded-server.onrender.com/registrar-pago?docId=' + docId + '&tipo=' + endpoint;
 
     res.send(`<html><body style="font-family:sans-serif;padding:24px;background:#f0fdf4;text-align:center">
       <h2 style="color:#16a34a">&#10003; ${tipoLabel} creada con exito</h2>
       <p style="color:#374151">Para: <b>${nombre}</b></p>
-      <div style="margin-top:24px">
-        <button onclick="window.open('${holdedUrl}', '_blank')" style="background:#2563eb;color:white;padding:12px 24px;border-radius:8px;border:none;cursor:pointer;font-weight:bold;font-size:14px">
-          Ver y descargar en Holded
+
+      <div style="background:white;border-radius:8px;padding:16px;margin-top:16px;text-align:left">
+        <p style="font-weight:bold;margin-bottom:12px">Registrar pago</p>
+        <label style="display:block;margin-bottom:4px;font-size:13px">Importe pagado (€)</label>
+        <input id="importe" type="number" step="0.01" min="0" placeholder="0.00" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:12px;box-sizing:border-box;font-size:14px">
+        <label style="display:block;margin-bottom:4px;font-size:13px">Cuenta</label>
+        <select id="cuenta" style="width:100%;padding:8px;border:1px solid #d1d5db;border-radius:6px;margin-bottom:12px;font-size:14px">
+          <option value="${BANCO_SANTANDER}">Cuenta Negocios Santander</option>
+          <option value="${BANCO_BBVA}">G Robles Asesores BBVA</option>
+          <option value="${EFECTIVO}">Efectivo (Caja)</option>
+        </select>
+        <button onclick="registrarPago('${pagoUrl}')" style="width:100%;background:#16a34a;color:white;padding:10px;border-radius:6px;border:none;cursor:pointer;font-weight:bold;font-size:14px">
+          Registrar pago
+        </button>
+        <div id="msg" style="margin-top:8px;font-size:13px"></div>
+      </div>
+
+      <div style="margin-top:16px">
+        <button onclick="window.open('${holdedUrl}', '_blank')" style="background:#2563eb;color:white;padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-weight:bold;font-size:14px">
+          Ver en Holded
         </button>
       </div>
-      <p style="color:#6b7280;font-size:12px;margin-top:16px">Se abrira Holded en una pestana nueva</p>
+
+      <script>
+        function registrarPago(url) {
+          var importe = document.getElementById('importe').value;
+          var cuenta = document.getElementById('cuenta').value;
+          var msg = document.getElementById('msg');
+          if (!importe || importe <= 0) { msg.innerHTML = '<span style="color:red">Introduce un importe valido</span>'; return; }
+          msg.innerHTML = 'Registrando...';
+          fetch(url + '&importe=' + importe + '&bankId=' + cuenta)
+            .then(r => r.json())
+            .then(d => {
+              if (d.success) msg.innerHTML = '<span style="color:green">&#10003; Pago registrado correctamente</span>';
+              else msg.innerHTML = '<span style="color:red">Error: ' + (d.error || 'Error desconocido') + '</span>';
+            })
+            .catch(() => msg.innerHTML = '<span style="color:red">Error de conexion</span>');
+        }
+      </script>
     </body></html>`);
   } catch (error) {
     res.send(`<html><body style="font-family:sans-serif;padding:20px;background:#fef2f2;text-align:center">
       <h2 style="color:#dc2626">Error</h2>
       <p>${error.response?.data?.info || error.message}</p>
     </body></html>`);
+  }
+});
+
+app.get('/registrar-pago', async (req, res) => {
+  try {
+    const { docId, tipo, importe, bankId } = req.query;
+    const response = await axios.post(
+      `https://api.holded.com/api/invoicing/v1/documents/${tipo}/${docId}/pay`,
+      {
+        date: Math.floor(Date.now() / 1000),
+        amount: parseFloat(importe),
+        bankId: bankId,
+      },
+      { headers: { key: HOLDED_API_KEY, 'Content-Type': 'application/json' } }
+    );
+    res.json({ success: true, data: response.data });
+  } catch (error) {
+    res.json({ success: false, error: error.response?.data?.info || error.message });
   }
 });
 
