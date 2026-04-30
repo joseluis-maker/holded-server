@@ -313,21 +313,36 @@ const MAPA_EX18 = {
 function prepararDatos(p) {
   const nie = p.nie || '';
   const fecha = p.date_of_birth || p.fecha_de_nacimiento || '';
-  const partesFecha = fecha.split(/[-/]/);
+  let fecha_dia = '', fecha_mes = '', fecha_anio = '';
+  const mesesTexto = { enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',octubre:'10',noviembre:'11',diciembre:'12' };
+  if (/[a-zA-Z]/.test(fecha)) {
+    const partes = fecha.trim().split(/\s+/);
+    fecha_dia  = (partes[0] || '').padStart(2,'0');
+    fecha_mes  = mesesTexto[partes[1]?.toLowerCase()] || '';
+    fecha_anio = partes[2] || '';
+  } else {
+    const partesFecha = fecha.split(/[-\/]/);
+    if (partesFecha[0].length === 4) {
+      fecha_anio = partesFecha[0]; fecha_mes = partesFecha[1]; fecha_dia = partesFecha[2];
+    } else {
+      fecha_dia = partesFecha[0]; fecha_mes = partesFecha[1]; fecha_anio = partesFecha[2] || '';
+    }
+  }
   const nombre = (p.firstname || '').toUpperCase();
   const apellidos = (p.lastname || '').trim().split(' ');
-
+  const apellido1 = apellidos[0] || '';
+  const apellido2 = apellidos.slice(1).join(' ') || '';
   return {
     pasaporte:         (p.pasaporte || '').toUpperCase(),
     nie_letra:         nie.charAt(0) || '',
     nie_numero:        nie.slice(1, -1) || '',
     nie_control:       nie.slice(-1) || '',
-    apellido1:         (apellidos[0] || '').toUpperCase(),
-    apellido2:         apellidos.slice(1).join(' ').toUpperCase(),
+    apellido1:         apellido1.toUpperCase(),
+    apellido2:         apellido2.toUpperCase(),
     firstname:         nombre,
-    fecha_dia:         partesFecha[0]?.length === 4 ? partesFecha[2] : partesFecha[0],
-    fecha_mes:         partesFecha[1] || '',
-    fecha_anio:        partesFecha[0]?.length === 4 ? partesFecha[0] : partesFecha[2] || '',
+    fecha_dia,
+    fecha_mes,
+    fecha_anio,
     lugar_de_nacimiento: (p.lugar_de_nacimiento || '').toUpperCase(),
     pais_de_nacimiento:  (p.pais_de_nacimiento || '').toUpperCase(),
     nacionalidad:      (p.nacionalidad || '').toUpperCase(),
