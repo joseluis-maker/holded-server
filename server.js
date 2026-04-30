@@ -17,17 +17,23 @@ const BANCO_SANTANDER = '68dbf9908bdfe70bf00ddc20';
 const BANCO_BBVA = '68f0dd9e1ba2fe44dd0b5be0';
 const EFECTIVO = '69f2c569999ef9f00500a934';
 
-async function buscarContactoHolded(email, nombre) {
+async function buscarContactoHolded(nombre) {
+  if (!nombre || nombre.trim() === '') return { contactId: null };
   try {
     const res = await axios.get(
-      `https://api.holded.com/api/invoicing/v1/contacts?email=${encodeURIComponent(email)}`,
+      `https://api.holded.com/api/invoicing/v1/contacts?name=${encodeURIComponent(nombre)}`,
       { headers: { key: HOLDED_API_KEY } }
     );
     if (res.data && res.data.length > 0) {
-      return { contactId: res.data[0].id, contactName: null };
+      const encontrado = res.data.find(c =>
+        c.name && c.name.toLowerCase().trim() === nombre.toLowerCase().trim()
+      );
+      if (encontrado) return { contactId: encontrado.id };
     }
-  } catch (e) {}
-  return { contactId: null, contactName: nombre };
+  } catch (e) {
+    console.log('Error buscando contacto:', e.message);
+  }
+  return { contactId: null };
 }
 
 async function obtenerDatosHubSpot(hs_object_id) {
@@ -68,7 +74,7 @@ app.get('/crear-documento', async (req, res) => {
     }
 
     const endpoint = tipo_documento === 'invoice' ? 'invoice' : tipo_documento === 'estimate' ? 'estimate' : 'proforma';
-    const { contactId, contactName } = await buscarContactoHolded(email, nombre);
+    const { contactId } = await buscarContactoHolded(nombre);
 
     let lineas = [];
     try { lineas = JSON.parse(itemsRaw || '[]'); } catch (e) {}
@@ -88,8 +94,8 @@ app.get('/crear-documento', async (req, res) => {
     if (contactId) {
       body.contactId = contactId;
     } else {
-      body.contactName = contactName;
-      body.contactEmail = email;
+      body.contactName = nombre;
+      if (email) body.contactEmail = email;
       if (telefono) body.contactPhone = telefono;
       if (direccion) body.contactAddress = direccion;
       if (ciudad) body.contactCity = ciudad;
@@ -112,7 +118,6 @@ app.get('/crear-documento', async (req, res) => {
     res.send(`<html><body style="font-family:sans-serif;padding:24px;background:#f0fdf4;text-align:center">
       <h2 style="color:#16a34a">&#10003; ${tipoLabel} creada con exito</h2>
       <p style="color:#374151">Para: <b>${nombre}</b></p>
-
       <div style="background:white;border-radius:8px;padding:16px;margin-top:16px;text-align:left">
         <p style="font-weight:bold;margin-bottom:12px">Registrar pago</p>
         <label style="display:block;margin-bottom:4px;font-size:13px">Importe pagado (€)</label>
@@ -128,13 +133,11 @@ app.get('/crear-documento', async (req, res) => {
         </button>
         <div id="msg" style="margin-top:8px;font-size:13px"></div>
       </div>
-
       <div style="margin-top:16px">
         <button onclick="window.open('${holdedUrl}', '_blank')" style="background:#2563eb;color:white;padding:10px 20px;border-radius:8px;border:none;cursor:pointer;font-weight:bold;font-size:14px">
           Ver en Holded
         </button>
       </div>
-
       <script>
         function registrarPago(url) {
           var importe = document.getElementById('importe').value;
@@ -165,11 +168,7 @@ app.get('/registrar-pago', async (req, res) => {
     const { docId, tipo, importe, bankId } = req.query;
     const response = await axios.post(
       `https://api.holded.com/api/invoicing/v1/documents/${tipo}/${docId}/pay`,
-      {
-        date: Math.floor(Date.now() / 1000),
-        amount: parseFloat(importe),
-        treasury: bankId,
-      },
+      { date: Math.floor(Date.now() / 1000), amount: parseFloat(importe), treasury: bankId },
       { headers: { key: HOLDED_API_KEY, 'Content-Type': 'application/json' } }
     );
     res.json({ success: true, data: response.data });
@@ -181,14 +180,14 @@ app.get('/registrar-pago', async (req, res) => {
 app.get('/documentos-contacto', async (req, res) => {
   try {
     const { hs_object_id } = req.query;
-    let email = '';
+    let nombre = '';
 
     if (hs_object_id && HUBSPOT_TOKEN) {
       const p = await obtenerDatosHubSpot(hs_object_id);
-      email = p.email || '';
+      nombre = ((p.firstname || '') + ' ' + (p.lastname || '')).trim();
     }
 
-    const { contactId } = await buscarContactoHolded(email, '');
+    const { contactId } = await buscarContactoHolded(nombre);
     if (!contactId) {
       return res.send(`<html><body style="font-family:sans-serif;padding:20px;text-align:center">
         <p>No se encontro el contacto en Holded.</p>
