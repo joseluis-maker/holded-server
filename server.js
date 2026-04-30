@@ -168,7 +168,7 @@ app.get('/registrar-pago', async (req, res) => {
       {
         date: Math.floor(Date.now() / 1000),
         amount: parseFloat(importe),
-        bankId: bankId,
+        treasury: bankId,
       },
       { headers: { key: HOLDED_API_KEY, 'Content-Type': 'application/json' } }
     );
