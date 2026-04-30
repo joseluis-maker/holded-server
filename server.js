@@ -41,7 +41,7 @@ async function obtenerDatosHubSpot(hs_object_id) {
     const props = [
       'firstname','lastname','email','phone','mobilephone',
       'calle_via','numero_calle','piso_puerta','city','state','zip',
-      'dni','nie','pasaporte','cedula'
+      'dni','nie','pasaporte','cedula','date_of_birth','pais_de_nacimiento','nombre_del_padre','nombre_de_la_madre','sexo','marital_status','lugar_de_nacimiento','nacionalidad'
     ].join(',');
     const hsRes = await axios.get(
       `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=${props}`,
@@ -242,3 +242,278 @@ app.get('/documentos-contacto', async (req, res) => {
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Servidor corriendo en puerto ' + PORT));
+
+// ============================================================
+// AUTORELLENADO DE FORMULARIOS EX
+// ============================================================
+const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
+const fs = require('fs');
+const path = require('path');
+
+const FORMULARIOS = {
+  'EX01': 'EX01. Formulario autorización de residencia temporal no lucrativa.pdf',
+  'EX13': 'EX13. Formulario autorización de regreso. Editable.pdf',
+  'EX18': 'EX18. Formulario inscripción en el RCE, residencia ciudadano de la UE. Editable.pdf',
+};
+
+// Mapeo EX13: campo -> nombre HubSpot
+const MAPA_EX13 = {
+  'Texto1':  'pasaporte',
+  'Texto2':  'nie_letra',
+  'Texto3':  'nie_numero',
+  'Texto4':  'nie_control',
+  'Texto5':  'apellido1',
+  'Texto6':  'apellido2',
+  'Texto7':  'firstname',
+  'Texto8':  'fecha_dia',
+  'Texto9':  'fecha_mes',
+  'Texto10': 'fecha_anio',
+  'Texto11': 'lugar_de_nacimiento',
+  'Texto12': 'pais_de_nacimiento',
+  'Texto13': 'nacionalidad',
+  'Texto14': 'nombre_padre',
+  'Texto15': 'nombre_madre',
+  'Texto16': 'address',
+  'Texto17': 'numero_calle',
+  'Texto18': 'piso_puerta',
+  'Texto19': 'city',
+  'Texto20': 'zip',
+  'Texto21': 'state',
+  'Texto22': 'phone',
+  'Texto23': 'email',
+};
+
+// Mapeo EX18: misma estructura que EX13 en página 1
+const MAPA_EX18 = {
+  'Texto1':  'pasaporte',
+  'Texto2':  'nie_letra',
+  'Texto3':  'nie_numero',
+  'Texto4':  'nie_control',
+  'Texto5':  'apellido1',
+  'Texto6':  'apellido2',
+  'Texto7':  'firstname',
+  'Texto8':  'fecha_dia',
+  'Texto9':  'fecha_mes',
+  'Texto10': 'fecha_anio',
+  'Texto11': 'lugar_de_nacimiento',
+  'Texto12': 'pais_de_nacimiento',
+  'Texto13': 'nacionalidad',
+  'Texto14': 'nombre_padre',
+  'Texto15': 'nombre_madre',
+  'Texto16': 'address',
+  'Texto17': 'numero_calle',
+  'Texto18': 'piso_puerta',
+  'Texto19': 'city',
+  'Texto20': 'zip',
+  'Texto21': 'state',
+  'Texto22': 'phone',
+  'Texto23': 'email',
+};
+
+function prepararDatos(p) {
+  const nie = p.nie || '';
+  const fecha = p.date_of_birth || p.fecha_de_nacimiento || '';
+  const partesFecha = fecha.split(/[-/]/);
+  const nombre = (p.firstname || '').toUpperCase();
+  const apellidos = (p.lastname || '').trim().split(' ');
+
+  return {
+    pasaporte:         (p.pasaporte || '').toUpperCase(),
+    nie_letra:         nie.charAt(0) || '',
+    nie_numero:        nie.slice(1, -1) || '',
+    nie_control:       nie.slice(-1) || '',
+    apellido1:         (apellidos[0] || '').toUpperCase(),
+    apellido2:         apellidos.slice(1).join(' ').toUpperCase(),
+    firstname:         nombre,
+    fecha_dia:         partesFecha[0]?.length === 4 ? partesFecha[2] : partesFecha[0],
+    fecha_mes:         partesFecha[1] || '',
+    fecha_anio:        partesFecha[0]?.length === 4 ? partesFecha[0] : partesFecha[2] || '',
+    lugar_de_nacimiento: (p.lugar_de_nacimiento || '').toUpperCase(),
+    pais_de_nacimiento:  (p.pais_de_nacimiento || '').toUpperCase(),
+    nacionalidad:      (p.nacionalidad || '').toUpperCase(),
+    nacionalidad2:     (p.nacionalidad || '').toUpperCase(),
+    nombre_padre:      (p.nombre_del_padre || '').toUpperCase(),
+    nombre_madre:      (p.nombre_de_la_madre || '').toUpperCase(),
+    address:           (p.calle_via || p.address || '').toUpperCase(),
+    numero_calle:      (p.numero_calle || '').toUpperCase(),
+    piso_puerta:       (p.piso_puerta || '').toUpperCase(),
+    city:              (p.city || '').toUpperCase(),
+    zip:               p.zip || '',
+    state:             (p.state || '').toUpperCase(),
+    phone:             p.phone || p.mobilephone || '',
+    email:             p.email || '',
+    sexo:              p.sexo || '',
+    estado_civil:      p.marital_status || '',
+    dni:               (p.dni || '').toUpperCase(),
+  };
+}
+
+
+  // Representante fijo - Jose Luis Robles Criado
+  const REP = {
+    nombre: 'JOSE LUIS ROBLES CRIADO',
+    dni: '5326459K',
+    direccion: 'CALLE VELAZQUEZ',
+    numero: '126',
+    piso: '6D',
+    ciudad: 'MADRID',
+    cp: '28006',
+    provincia: 'MADRID',
+    telefono: '619934302',
+    email: 'INFO@ROBLESEXTRANJERIA.COM',
+  };
+
+async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false) {
+  const pdfBytes = fs.readFileSync(rutaPdf);
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+  const form = pdfDoc.getForm();
+
+  for (const [campo, clave] of Object.entries(mapa)) {
+    try {
+      const field = form.getTextField(campo);
+      if (field && datos[clave]) {
+        field.setText(datos[clave]);
+      }
+    } catch (e) { /* campo no encontrado, continuar */ }
+  }
+
+  // Sexo - checkboxes
+  try {
+    const sexo = datos.sexo?.toLowerCase();
+    if (sexo === 'h' || sexo === 'hombre' || sexo === 'male' || sexo === 'man') {
+      form.getCheckBox('Casilla de verificación28')?.check();
+    } else if (sexo === 'm' || sexo === 'mujer' || sexo === 'female' || sexo === 'woman') {
+      form.getCheckBox('Casilla de verificación29')?.check();
+    }
+  } catch (e) {}
+
+  // Estado civil - checkboxes (S=30, C=31, V=32, D=33, Sp=34)
+  try {
+    const ec = datos.estado_civil?.toLowerCase();
+    const mapaEC = { 's': 30, 'soltero': 30, 'single': 30, 'c': 31, 'casado': 31, 'married': 31, 'v': 32, 'viudo': 32, 'widowed': 32, 'd': 33, 'divorciado': 33, 'divorced': 33, 'sp': 34, 'separado': 34, 'separated': 34 };
+    const num = mapaEC[ec];
+    if (num) form.getCheckBox(`Casilla de verificación${num}`)?.check();
+  } catch (e) {}
+
+  // Representante (opcional)
+  if (conRepresentante) {
+    try { form.getTextField('Texto42').setText(REP.nombre); } catch(e) {}
+    try { form.getTextField('Texto43').setText(REP.dni); } catch(e) {}
+    try { form.getTextField('Texto44').setText(REP.direccion); } catch(e) {}
+    try { form.getTextField('Texto45').setText(REP.numero); } catch(e) {}
+    try { form.getTextField('Texto46').setText(REP.piso); } catch(e) {}
+    try { form.getTextField('Texto47').setText(REP.ciudad); } catch(e) {}
+    try { form.getTextField('Texto48').setText(REP.cp); } catch(e) {}
+    try { form.getTextField('Texto49').setText(REP.provincia); } catch(e) {}
+    try { form.getTextField('Texto50').setText(REP.telefono); } catch(e) {}
+    try { form.getTextField('Texto51').setText(REP.email); } catch(e) {}
+    // EX18
+    try { form.getTextField('Texto27').setText(REP.nombre); } catch(e) {}
+    try { form.getTextField('Texto28').setText(REP.dni); } catch(e) {}
+    try { form.getTextField('Texto29').setText(REP.direccion); } catch(e) {}
+    try { form.getTextField('Texto30').setText(REP.numero); } catch(e) {}
+    try { form.getTextField('Texto31').setText(REP.piso); } catch(e) {}
+    try { form.getTextField('Texto32').setText(REP.ciudad); } catch(e) {}
+    try { form.getTextField('Texto33').setText(REP.cp); } catch(e) {}
+    try { form.getTextField('Texto34').setText(REP.provincia); } catch(e) {}
+    try { form.getTextField('Texto35').setText(REP.telefono); } catch(e) {}
+    try { form.getTextField('Texto36').setText(REP.email); } catch(e) {}
+  }
+
+  // Fecha y ciudad de firma
+  const hoy = new Date();
+  const dia = String(hoy.getDate()).padStart(2,'0');
+  const mes = String(hoy.getMonth()+1).padStart(2,'0');
+  const anio = String(hoy.getFullYear());
+  const meses = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  try { form.getTextField('Texto66').setText(datos.city); } catch(e) {}
+  try { form.getTextField('Texto67').setText(dia); } catch(e) {}
+  try { form.getTextField('Texto68').setText(meses[hoy.getMonth()+1]); } catch(e) {}
+  try { form.getTextField('Texto69').setText(anio); } catch(e) {}
+
+  form.flatten();
+  return await pdfDoc.save();
+}
+
+async function rellenarEX01(rutaPdf, datos) {
+  const pdfBytes = fs.readFileSync(rutaPdf);
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+  const pages = pdfDoc.getPages();
+  const page = pages[0];
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const size = 8;
+  const color = rgb(0, 0, 0);
+
+  const escribir = (texto, x, y) => {
+    if (!texto) return;
+    page.drawText(String(texto), { x, y, size, font, color });
+  };
+
+  // Coordenadas calibradas sobre EX01 (y invertida: alto pagina - y_visual)
+  const alto = page.getHeight();
+  const inv = (y) => alto - y;
+
+  escribir(datos.pasaporte,           96,  inv(218));
+  escribir(datos.nie_letra,          324,  inv(218));
+  escribir(datos.nie_numero,         359,  inv(218));
+  escribir(datos.nie_control,        514,  inv(218));
+  escribir(datos.apellido1,           91,  inv(239));
+  escribir(datos.apellido2,          385,  inv(239));
+  escribir(datos.firstname,           79,  inv(257));
+  escribir(datos.fecha_dia,          134,  inv(276));
+  escribir(datos.fecha_mes,          162,  inv(276));
+  escribir(datos.fecha_anio,         189,  inv(276));
+  escribir(datos.lugar_de_nacimiento,250,  inv(276));
+  escribir(datos.nacionalidad,        95,  inv(293));
+  escribir(datos.nombre_padre,       114,  inv(312));
+  escribir(datos.nombre_madre,       371,  inv(312));
+  escribir(datos.address,            121,  inv(330));
+  escribir(datos.numero_calle,       489,  inv(330));
+  escribir(datos.piso_puerta,        535,  inv(330));
+  escribir(datos.city,                89,  inv(348));
+  escribir(datos.zip,                345,  inv(348));
+  escribir(datos.state,              458,  inv(348));
+  escribir(datos.phone,              107,  inv(366));
+  escribir(datos.email,              296,  inv(366));
+
+  return await pdfDoc.save();
+}
+
+app.get('/rellenar-formulario', async (req, res) => {
+  try {
+    const { hs_object_id, formulario, representante } = req.query;
+    const conRepresentante = representante === 'si';
+
+    if (!formulario || !FORMULARIOS[formulario]) {
+      return res.send(`<html><body style="font-family:sans-serif;padding:20px">
+        <p>Formulario no válido. Opciones: EX01, EX13, EX18</p>
+      </body></html>`);
+    }
+
+    if (!hs_object_id || !HUBSPOT_TOKEN) {
+      return res.status(400).json({ error: 'Faltan parámetros' });
+    }
+
+    const p = await obtenerDatosHubSpot(hs_object_id);
+    const datos = prepararDatos(p);
+    const rutaPdf = path.join(__dirname, 'formularios', FORMULARIOS[formulario]);
+
+    let pdfBytes;
+    if (formulario === 'EX01') {
+      pdfBytes = await rellenarEX01(rutaPdf, datos);
+    } else if (formulario === 'EX13') {
+      pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante);
+    } else if (formulario === 'EX18') {
+      pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX18, datos, conRepresentante);
+    }
+
+    const nombre = `${formulario}_${datos.apellido1}_${datos.firstname}.pdf`.replace(/\s+/g, '_');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
+    res.send(Buffer.from(pdfBytes));
+
+  } catch (error) {
+    console.error('Error rellenando formulario:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
