@@ -401,7 +401,7 @@ function prepararDatos(p) {
     email: 'INFO@ROBLESEXTRANJERIA.COM',
   };
 
-async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false) {
+async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false, formulario = '') {
   const pdfBytes = fs.readFileSync(rutaPdf);
   const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
   const form = pdfDoc.getForm();
@@ -415,59 +415,72 @@ async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false) 
     } catch (e) { /* campo no encontrado, continuar */ }
   }
 
-  // Sexo - checkboxes
+  // Sexo y estado civil - detectar checkboxes automáticamente
   try {
+    const fields = form.getFields();
+    const checkboxes = fields.filter(f => f.constructor.name === 'PDFCheckBox')
+      .map(f => f.getName()).sort((a,b) => {
+        const na = parseInt(a.replace(/D/g,''));
+        const nb = parseInt(b.replace(/D/g,''));
+        return na - nb;
+      });
+    
+    // Los primeros 3 checkboxes son sexo (X, H, M)
+    // Los siguientes 5 son estado civil (S, C, V, D, Sp)
+    const sexoCBs = checkboxes.slice(0, 3); // [X*, H, M]
+    const ecCBs = checkboxes.slice(3, 8);   // [S, C, V, D, Sp]
+
     const sexo = datos.sexo?.toLowerCase();
     if (sexo === 'h' || sexo === 'hombre' || sexo === 'male' || sexo === 'man') {
-      form.getCheckBox('Casilla de verificación28')?.check();
+      try { form.getCheckBox(sexoCBs[1])?.check(); } catch(e) {}
     } else if (sexo === 'm' || sexo === 'mujer' || sexo === 'female' || sexo === 'woman') {
-      form.getCheckBox('Casilla de verificación29')?.check();
+      try { form.getCheckBox(sexoCBs[2])?.check(); } catch(e) {}
+    }
+
+    const ec = datos.estado_civil?.toLowerCase();
+    const mapaEC = { 's': 0, 'soltero': 0, 'single': 0, 'c': 1, 'casado': 1, 'married': 1, 'v': 2, 'viudo': 2, 'widowed': 2, 'd': 3, 'divorciado': 3, 'divorced': 3, 'sp': 4, 'separado': 4, 'separated': 4 };
+    const idx = mapaEC[ec];
+    if (idx !== undefined && ecCBs[idx]) {
+      try { form.getCheckBox(ecCBs[idx])?.check(); } catch(e) {}
     }
   } catch (e) {}
 
-  // Estado civil - checkboxes (S=30, C=31, V=32, D=33, Sp=34)
-  try {
-    const ec = datos.estado_civil?.toLowerCase();
-    const mapaEC = { 's': 30, 'soltero': 30, 'single': 30, 'c': 31, 'casado': 31, 'married': 31, 'v': 32, 'viudo': 32, 'widowed': 32, 'd': 33, 'divorciado': 33, 'divorced': 33, 'sp': 34, 'separado': 34, 'separated': 34 };
-    const num = mapaEC[ec];
-    if (num) form.getCheckBox(`Casilla de verificación${num}`)?.check();
-  } catch (e) {}
-
-  // Representante (opcional)
+  // Representante (opcional) - usando mapa por formulario
   if (conRepresentante) {
-    try { form.getTextField('Texto42').setText(REP.nombre); } catch(e) {}
-    try { form.getTextField('Texto43').setText(REP.dni); } catch(e) {}
-    try { form.getTextField('Texto44').setText(REP.direccion); } catch(e) {}
-    try { form.getTextField('Texto45').setText(REP.numero); } catch(e) {}
-    try { form.getTextField('Texto46').setText(REP.piso); } catch(e) {}
-    try { form.getTextField('Texto47').setText(REP.ciudad); } catch(e) {}
-    try { form.getTextField('Texto48').setText(REP.cp); } catch(e) {}
-    try { form.getTextField('Texto49').setText(REP.provincia); } catch(e) {}
-    try { form.getTextField('Texto50').setText(REP.telefono); } catch(e) {}
-    try { form.getTextField('Texto51').setText(REP.email); } catch(e) {}
-    // EX18
-    try { form.getTextField('Texto27').setText(REP.nombre); } catch(e) {}
-    try { form.getTextField('Texto28').setText(REP.dni); } catch(e) {}
-    try { form.getTextField('Texto29').setText(REP.direccion); } catch(e) {}
-    try { form.getTextField('Texto30').setText(REP.numero); } catch(e) {}
-    try { form.getTextField('Texto31').setText(REP.piso); } catch(e) {}
-    try { form.getTextField('Texto32').setText(REP.ciudad); } catch(e) {}
-    try { form.getTextField('Texto33').setText(REP.cp); } catch(e) {}
-    try { form.getTextField('Texto34').setText(REP.provincia); } catch(e) {}
-    try { form.getTextField('Texto35').setText(REP.telefono); } catch(e) {}
-    try { form.getTextField('Texto36').setText(REP.email); } catch(e) {}
+    const MAPA_REP = {
+      'EX00': ['Texto65','Texto66','Texto67','Texto68','Texto69','Texto70','Texto71','Texto72','Texto73','Texto74'],
+      'EX01': ['Texto42','Texto43','Texto44','Texto45','Texto46','Texto47','Texto48','Texto49','Texto50','Texto51'],
+      'EX02': ['Texto55','Texto56','Texto57','Texto58','Texto59','Texto60','Texto61','Texto62','Texto63','Texto64'],
+      'EX03': ['Texto79','Texto80','Texto81','Texto82','Texto83','Texto84','Texto85','Texto86','Texto87','Texto88'],
+      'EX04': ['Texto47','Texto48','Texto49','Texto50','Texto51','Texto52','Texto53','Texto54','Texto55','Texto56'],
+      'EX06': ['Texto60','Texto61','Texto62','Texto63','Texto64','Texto65','Texto66','Texto67','Texto68','Texto69'],
+      'EX07': ['Texto64','Texto65','Texto66','Texto67','Texto68','Texto69','Texto70','Texto71','Texto72','Texto73'],
+      'EX09': ['Texto43','Texto44','Texto45','Texto46','Texto47','Texto48','Texto49','Texto50','Texto51','Texto52'],
+      'EX10': ['Texto99','Texto100','Texto101','Texto102','Texto103','Texto104','Texto105','Texto106','Texto107','Texto108'],
+      'EX11': ['Texto55','Texto56','Texto57','Texto58','Texto59','Texto60','Texto61','Texto62','Texto63','Texto64'],
+      'EX13': ['Texto42','Texto43','Texto44','Texto45','Texto46','Texto47','Texto48','Texto49','Texto50','Texto51'],
+      'EX16': ['Texto27','Texto28','Texto29','Texto30','Texto31','Texto32','Texto33','Texto34','Texto35','Texto36'],
+      'EX17': ['Texto27','Texto28','Texto29','Texto30','Texto31','Texto32','Texto33','Texto34','Texto35','Texto36'],
+      'EX18': ['Texto27','Texto28','Texto29','Texto30','Texto31','Texto32','Texto33','Texto34','Texto35','Texto36'],
+      'EX19': ['Texto44','Texto45','Texto46','Texto47','Texto48','Texto49','Texto50','Texto51','Texto52','Texto53'],
+      'EX20': ['Texto46','Texto47','Texto48','Texto49','Texto50','Texto51','Texto52','Texto53','Texto54','Texto55'],
+      'EX21': ['Texto51','Texto52','Texto53','Texto54','Texto55','Texto56','Texto57','Texto58','Texto59','Texto60'],
+      'EX22': ['Texto41','Texto42','Texto43','Texto44','Texto45','Texto46','Texto47','Texto48','Texto49','Texto50'],
+      'EX23': ['Texto27','Texto28','Texto29','Texto30','Texto31','Texto32','Texto33','Texto34','Texto35','Texto36'],
+      'EX24': ['Texto79','Texto80','Texto81','Texto82','Texto83','Texto84','Texto85','Texto86','Texto87','Texto88'],
+      'EX25': ['Texto100','Texto101','Texto102','Texto103','Texto104','Texto105','Texto106','Texto107','Texto108','Texto109'],
+      'EX26': ['Texto43','Texto44','Texto45','Texto46','Texto47','Texto48','Texto49','Texto50','Texto51','Texto52'],
+      'EX28': ['Texto57','Texto58','Texto59','Texto60','Texto61','Texto62','Texto63','Texto64','Texto65','Texto66'],
+      'EX29': ['Texto30','Texto31','Texto32','Texto33','Texto34','Texto35','Texto36','Texto37','Texto38','Texto39'],
+      'EX31': ['Texto110','Texto111','Texto112','Texto113','Texto114','Texto115','Texto116','Texto117','Texto118','Texto119'],
+      'EX32': ['Texto130','Texto131','Texto132','Texto133','Texto134','Texto135','Texto136','Texto137','Texto138','Texto139'],
+    };
+    const campos = MAPA_REP[formulario] || MAPA_REP['EX13'];
+    const vals = [REP.nombre, REP.dni, REP.direccion, REP.numero, REP.piso, REP.ciudad, REP.cp, REP.provincia, REP.telefono, REP.email];
+    campos.forEach((c, i) => { try { form.getTextField(c).setText(vals[i]); } catch(e) {} });
   }
 
-  // Fecha y ciudad de firma
-  const hoy = new Date();
-  const dia = String(hoy.getDate()).padStart(2,'0');
-  const mes = String(hoy.getMonth()+1).padStart(2,'0');
-  const anio = String(hoy.getFullYear());
-  const meses = ['','enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  try { form.getTextField('Texto66').setText(datos.city); } catch(e) {}
-  try { form.getTextField('Texto67').setText(dia); } catch(e) {}
-  try { form.getTextField('Texto68').setText(meses[hoy.getMonth()+1]); } catch(e) {}
-  try { form.getTextField('Texto69').setText(anio); } catch(e) {}
+  // Fecha de firma: se completa a mano
 
   form.flatten();
   return await pdfDoc.save();
@@ -547,7 +560,7 @@ app.get('/rellenar-formulario', async (req, res) => {
     const rutaPdf = path.join(__dirname, 'formularios', FORMULARIOS[formulario]);
 
     let pdfBytes;
-    pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante);
+    pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante, formulario);
 
     const nombre = `${formulario}_${datos.apellido1}_${datos.firstname}.pdf`.replace(/\s+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
