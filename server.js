@@ -809,7 +809,7 @@ async function rellenarMI(rutaPdf, datos, tipo, datosFamiliar = null) {
     setText('DR_DNI',       '5326459K');
   }
 
-  form.flatten();
+  // form.flatten(); // campos editables
   return await pdfDoc.save();
 }
 
@@ -923,7 +923,7 @@ async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false, 
 
   // Fecha de firma: se completa a mano
 
-  form.flatten();
+  // form.flatten(); // campos editables
   return await pdfDoc.save();
 }
 
