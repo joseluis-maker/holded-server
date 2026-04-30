@@ -40,15 +40,14 @@ async function obtenerDatosHubSpot(hs_object_id) {
     );
     return hsRes.data.properties;
   } catch (e) {
-    console.log('Error HubSpot:', e.message);
     return {};
   }
 }
 
 app.get('/crear-documento', async (req, res) => {
   try {
-    const { hs_object_id, servicio_id, tipo_documento, descuento, notas } = req.query;
-    let nombre = '', email = '', telefono = '', direccion = '', ciudad = '', cp = '', provincia = '', dni = '', nie = '', pasaporte = '';
+    const { hs_object_id, tipo_documento, notas, items: itemsRaw } = req.query;
+    let nombre = '', email = '', telefono = '', direccion = '', ciudad = '', cp = '', provincia = '', docIdentidad = '';
 
     if (hs_object_id && HUBSPOT_TOKEN) {
       const p = await obtenerDatosHubSpot(hs_object_id);
@@ -62,18 +61,29 @@ app.get('/crear-documento', async (req, res) => {
       ciudad = p.city || '';
       cp = p.zip || '';
       provincia = p.state || '';
-      dni = p.dni || '';
-      nie = p.nie || '';
-      pasaporte = p.pasaporte || '';
+      docIdentidad = p.dni || p.nie || p.pasaporte || p.cedula || '';
     }
 
     const endpoint = tipo_documento === 'invoice' ? 'invoice' : tipo_documento === 'estimate' ? 'estimate' : 'proforma';
     const { contactId, contactName } = await buscarContactoHolded(email, nombre);
 
+    let lineas = [];
+    try {
+      lineas = JSON.parse(itemsRaw || '[]');
+    } catch (e) {
+      lineas = [];
+    }
+
+    const items = lineas.map(l => ({
+      serviceId: l.servicio,
+      units: parseInt(l.cantidad) || 1,
+      discount: parseFloat(l.descuento) || 0,
+    }));
+
     const body = {
       date: Math.floor(Date.now() / 1000),
       notes: notas || '',
-      items: [{ serviceId: servicio_id, units: 1, discount: parseFloat(descuento) || 0 }],
+      items,
     };
 
     if (contactId) {
@@ -86,7 +96,6 @@ app.get('/crear-documento', async (req, res) => {
       if (ciudad) body.contactCity = ciudad;
       if (cp) body.contactCp = cp;
       if (provincia) body.contactProvince = provincia;
-      const docIdentidad = dni || nie || pasaporte || '';
       if (docIdentidad) body.contactCode = docIdentidad;
     }
 
