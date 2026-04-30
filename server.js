@@ -303,6 +303,8 @@ const FORMULARIOS = {
   'MI-T': 'MI_T ABRIL_2021_v10_editable.pdf',
   'DESG': 'DESG_REPRES.pdf',
   'DESG2': 'DESIGINACIO_N_DE__REPRESENTANTE.pdf',
+  'NAC': 'Formulario_de_Solicitud_Nac_por_res.pdf',
+  'JURA': 'Formulario-de-Jura.pdf',
 };
 
 // Mapeo EX13: campo -> nombre HubSpot
@@ -429,6 +431,150 @@ function prepararDatos(p) {
 
 
 
+
+
+
+const { execSync } = require('child_process');
+const os = require('os');
+
+async function rellenarConPython(rutaPdf, datos, tipo, datosFamiliar = null) {
+  const tmpOut = os.tmpdir() + '/formulario_' + Date.now() + '.pdf';
+  
+  let camposNAC = {
+    'NombreInteresado':   datos.firstname,
+    'Apellido1Interesado':datos.apellido1,
+    'Apellido2Interesado':datos.apellido2,
+    'día':                datos.fecha_dia,
+    'mes':                datos.fecha_mes,
+    'año':                datos.fecha_anio,
+    'localidad':          datos.lugar_de_nacimiento,
+    'pais':               datos.pais_de_nacimiento,
+    'NIE':                datos.nie_letra + datos.nie_numero + datos.nie_control,
+    'NombrePadre':        datos.nombre_padre,
+    'NombreMadre':        datos.nombre_madre,
+    'nacionalidadNIE':    datos.nacionalidad,
+    // Estado civil - se marca checkbox según valor
+    // Domicilio interesado (página 2)
+    'direccion':          datos.address,
+    'Nº_direccion_interesado': datos.numero_calle,
+    'Piso_direccion_interesado': datos.piso_puerta,
+    'localidadInteresado':datos.city,
+    'provinciaInteresado':datos.state,
+    'CPInteresado':       datos.zip,
+    'tfnoMovilInteresado':datos.phone,
+    'emailInteresado':    datos.email,
+    // Representante con poder - Jose Luis Robles Criado
+    'NombreRptePoder':    'JOSE LUIS',
+    'ApellidoRptePoder':  'ROBLES CRIADO',
+    'NIERptePoder':       '5326459K',
+    'direccionRptePoder': 'CALLE VELAZQUEZ',
+    'Nº_direccion_RptePoder': '126',
+    'Piso_direccion_RptePoder': '6D',
+    'localidadRptePoder': 'MADRID',
+    'provinciaRptePoder': 'MADRID',
+    'CPRptePoder':        '28006',
+    'tfnoMovilRptePoder': '619934302',
+    'emailRptePoder':     'INFO@ROBLESEXTRANJERIA.COM',
+    // Conyuge (si hay familiar asociado)
+    ...(datosFamiliar ? {
+      'NombreConyuge':     datosFamiliar.firstname,
+      'ApellidoConyuge':   datosFamiliar.apellido1,
+      'Apellido2Conyuge':  datosFamiliar.apellido2,
+      'NacionalidadConyuge': datosFamiliar.nacionalidad,
+    } : {}),
+  };
+
+  let camposJURA = {
+    'COMPARECE quien acredita ser': datos.firstname + ' ' + datos.apellido1 + ' ' + datos.apellido2,
+    'nacidoa en':          datos.lugar_de_nacimiento,
+    'el día':              datos.fecha_dia,
+    'de_3':                datos.fecha_mes,
+    'de_4':                datos.fecha_anio,
+    'de nacionalidad':     datos.nacionalidad,
+    'de residencia en España n': datos.nie_letra + datos.nie_numero + datos.nie_control,
+    'asistido por':        'JOSE LUIS ROBLES CRIADO',
+    'Nombre':              datos.firstname,
+    'Apellidos':           datos.apellido1 + ' ' + datos.apellido2,
+  };
+
+  const campos = tipo === 'NAC' ? camposNAC : camposJURA;
+  const dataJson = JSON.stringify(campos).replace(/'/g, "\'");
+  
+  execSync(`python3 ${__dirname}/fill_pdf.py "${rutaPdf}" "${tmpOut}" '${dataJson}'`);
+  
+  const result = fs.readFileSync(tmpOut);
+  fs.unlinkSync(tmpOut);
+  return result;
+}
+
+async function rellenarNAC(rutaPdf, datos) {
+  const pdfBytes = fs.readFileSync(rutaPdf);
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+  const form = pdfDoc.getForm();
+  const set = (c, v) => { try { form.getTextField(c).setText(v || ''); } catch(e) {} };
+
+  set('NombreInteresado',   datos.firstname);
+  set('Apellido1Interesado',datos.apellido1);
+  set('Apellido2Interesado',datos.apellido2);
+  set('día',                datos.fecha_dia);
+  set('mes',                datos.fecha_mes);
+  set('año',                datos.fecha_anio);
+  set('localidad',          datos.lugar_de_nacimiento);
+  set('pais',               datos.pais_de_nacimiento);
+  set('NIE',                datos.nie_letra + datos.nie_numero + datos.nie_control);
+  set('NombrePadre',        datos.nombre_padre);
+  set('NombreMadre',        datos.nombre_madre);
+  // Domicilio página 2
+  set('direccion',          datos.address);
+  set('Nº_direccion_interesado', datos.numero_calle);
+  set('Piso_direccion_interesado', datos.piso_puerta);
+  set('localidadInteresado',datos.city);
+  set('provinciaInteresado',datos.state);
+  set('CPInteresado',       datos.zip);
+  set('tfnoMovilInteresado',datos.phone);
+  set('emailInteresado',    datos.email);
+  // Representante - Jose Luis Robles Criado
+  set('NombreRptePoder',    'JOSE LUIS');
+  set('ApellidoRptePoder',  'ROBLES CRIADO');
+  set('NIERptePoder',       '5326459K');
+  set('direccionRptePoder', 'CALLE VELAZQUEZ');
+  set('Nº_direccion_RptePoder', '126');
+  set('Piso_direccion_RptePoder', '6D');
+  set('localidadRptePoder', 'MADRID');
+  set('provinciaRptePoder', 'MADRID');
+  set('CPRptePoder',        '28006');
+  set('tfnoMovilRptePoder', '619934302');
+  set('emailRptePoder',     'INFO@ROBLESEXTRANJERIA.COM');
+  // Sexo
+  try {
+    const sexo = datos.sexo?.toLowerCase();
+    const fields = form.getFields().filter(f => f.getName() === 'sexo');
+    if (sexo === 'h' || sexo === 'hombre') { try { fields[0].check(); } catch(e) {} }
+    else if (sexo === 'm' || sexo === 'mujer') { try { fields[1].check(); } catch(e) {} }
+  } catch(e) {}
+
+  return await pdfDoc.save();
+}
+
+async function rellenarJURA(rutaPdf, datos) {
+  const pdfBytes = fs.readFileSync(rutaPdf);
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+  const form = pdfDoc.getForm();
+  const set = (c, v) => { try { form.getTextField(c).setText(v || ''); } catch(e) {} };
+
+  set('COMPARECE quien acredita ser', datos.firstname + ' ' + datos.apellido1 + ' ' + datos.apellido2);
+  set('nacidoa en',          datos.lugar_de_nacimiento);
+  set('el día',              datos.fecha_dia);
+  set('de_3',                datos.fecha_mes);
+  set('de_4',                datos.fecha_anio);
+  set('de nacionalidad',     datos.nacionalidad);
+  set('de residencia en España n', datos.nie_letra + datos.nie_numero + datos.nie_control);
+  set('asistido por',        'JOSE LUIS ROBLES CRIADO');
+  set('Nombre',              datos.firstname);
+  set('Apellidos',           datos.apellido1 + ' ' + datos.apellido2);
+
+  return await pdfDoc.save();
+}
 
 async function rellenarDESG2(rutaPdf, datos) {
   const pdfBytes = fs.readFileSync(rutaPdf);
@@ -832,7 +978,7 @@ app.get('/rellenar-formulario', async (req, res) => {
 
     if (!formulario || !FORMULARIOS[formulario]) {
       return res.send(`<html><body style="font-family:sans-serif;padding:20px">
-        <p>Formulario no válido. Opciones: EX01, EX13, EX18</p>
+        <p>Formulario no válido.</p>
       </body></html>`);
     }
 
@@ -852,7 +998,11 @@ app.get('/rellenar-formulario', async (req, res) => {
     const rutaPdf = path.join(__dirname, 'formularios', FORMULARIOS[formulario]);
 
     let pdfBytes;
-    if (formulario === 'DESG2') {
+    if (formulario === 'NAC') {
+      pdfBytes = await rellenarConPython(rutaPdf, datos, 'NAC', datosFamiliar);
+    } else if (formulario === 'JURA') {
+      pdfBytes = await rellenarConPython(rutaPdf, datos, 'JURA');
+    } else if (formulario === 'DESG2') {
       pdfBytes = await rellenarDESG2(rutaPdf, datos);
     } else if (formulario === 'DESG') {
       pdfBytes = await rellenarDESG(rutaPdf, datos);
