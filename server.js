@@ -647,7 +647,7 @@ async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false, 
   if (conRepresentante) {
     const MAPA_REP = {
       'EX00': ['Texto65','Texto66','Texto67','Texto68','Texto69','Texto70','Texto71','Texto72','Texto73','Texto74'],
-      'EX01': ['Texto42','Texto43','Texto44','Texto45','Texto46','Texto47','Texto48','Texto49','Texto50','Texto51'],
+      'EX01': ['Texto41','Texto42','Texto43','Texto44','Texto45','Texto46','Texto47','Texto48','Texto49','Texto50'],
       'EX02': ['Texto55','Texto56','Texto57','Texto58','Texto59','Texto60','Texto61','Texto62','Texto63','Texto64'],
       'EX03': ['Texto79','Texto80','Texto81','Texto82','Texto83','Texto84','Texto85','Texto86','Texto87','Texto88'],
       'EX04': ['Texto47','Texto48','Texto49','Texto50','Texto51','Texto52','Texto53','Texto54','Texto55','Texto56'],
@@ -681,7 +681,7 @@ async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false, 
   // Datos del familiar/reagrupante/empleador asociado
   if (datosFamiliar) {
     const MAPA_FAMILIAR = {
-      'EX01': { pas:'Texto27', nie1:'Texto28', nie2:'Texto29', nie3:'Texto30', ape:'Texto31', nom:'Texto32' },
+      'EX01': { pas:'Texto27', nie1:'Texto28', nie2:'Texto29', nie3:'Texto30', ape:'Texto31', ape2:'Texto32', nom:'Texto33', fdia:'Texto34', fmes:'Texto35', fanio:'Texto36', pais:'Texto37', padre:'Texto38', madre:'Texto39' },
       'EX02': { pas:'Texto30', nie1:'Texto31', nie2:'Texto32', nie3:'Texto33', ape:'Texto34', nom:'Texto35' },
       'EX06': { nom:'Texto36', dni:'Texto37' },
       'EX19': { pas:'Texto27', nie1:'Texto28', nie2:'Texto29', nie3:'Texto30', ape:'Texto31', nom:'Texto32' },
@@ -694,9 +694,16 @@ async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false, 
       if (mf.nie1) try { form.getTextField(mf.nie1).setText(datosFamiliar.nie_letra || ''); } catch(e) {}
       if (mf.nie2) try { form.getTextField(mf.nie2).setText(datosFamiliar.nie_numero || ''); } catch(e) {}
       if (mf.nie3) try { form.getTextField(mf.nie3).setText(datosFamiliar.nie_control || ''); } catch(e) {}
-      if (mf.ape) try { form.getTextField(mf.ape).setText((datosFamiliar.apellido1 + ' ' + datosFamiliar.apellido2).trim() || ''); } catch(e) {}
+      if (mf.ape) try { form.getTextField(mf.ape).setText(datosFamiliar.apellido1 || ''); } catch(e) {}
+      if (mf.ape2) try { form.getTextField(mf.ape2).setText(datosFamiliar.apellido2 || ''); } catch(e) {}
       if (mf.nom) try { form.getTextField(mf.nom).setText(datosFamiliar.firstname || ''); } catch(e) {}
       if (mf.dni) try { form.getTextField(mf.dni).setText(datosFamiliar.dni || datosFamiliar.nie_letra + datosFamiliar.nie_numero + datosFamiliar.nie_control || ''); } catch(e) {}
+      if (mf.fdia) try { form.getTextField(mf.fdia).setText(datosFamiliar.fecha_dia || ''); } catch(e) {}
+      if (mf.fmes) try { form.getTextField(mf.fmes).setText(datosFamiliar.fecha_mes || ''); } catch(e) {}
+      if (mf.fanio) try { form.getTextField(mf.fanio).setText(datosFamiliar.fecha_anio || ''); } catch(e) {}
+      if (mf.pais) try { form.getTextField(mf.pais).setText(datosFamiliar.pais_de_nacimiento || ''); } catch(e) {}
+      if (mf.padre) try { form.getTextField(mf.padre).setText(datosFamiliar.nombre_padre || ''); } catch(e) {}
+      if (mf.madre) try { form.getTextField(mf.madre).setText(datosFamiliar.nombre_madre || ''); } catch(e) {}
     }
   }
 
