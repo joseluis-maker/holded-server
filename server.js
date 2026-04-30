@@ -30,12 +30,11 @@ async function buscarContactoHolded(email, nombre) {
 async function obtenerDatosHubSpot(hs_object_id) {
   try {
     const hsRes = await axios.get(
-      `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=firstname,lastname,email,phone,address,city,zip,hs_language`,
+      `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=firstname,lastname,email,phone,address,city,zip`,
       { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
     );
     return hsRes.data.properties;
   } catch (e) {
-    console.log('Error HubSpot:', e.message);
     return {};
   }
 }
@@ -83,21 +82,21 @@ app.get('/crear-documento', async (req, res) => {
 
     const docId = response.data.id;
     const tipoLabel = tipo_documento === 'invoice' ? 'Factura' : tipo_documento === 'estimate' ? 'Presupuesto' : 'Proforma';
-    const holdedUrl = `https://app.holded.com/sales/revenue#open:${endpoint}-${docId}`;
+    const holdedUrl = 'https://app.holded.com/sales/revenue#open:' + endpoint + '-' + docId;
 
     res.send(`<html><body style="font-family:sans-serif;padding:24px;background:#f0fdf4;text-align:center">
-      <h2 style="color:#16a34a">✅ ${tipoLabel} creada con éxito</h2>
+      <h2 style="color:#16a34a">&#10003; ${tipoLabel} creada con exito</h2>
       <p style="color:#374151">Para: <b>${nombre}</b></p>
       <div style="margin-top:24px">
         <button onclick="window.top.open('${holdedUrl}', '_blank')" style="background:#2563eb;color:white;padding:12px 24px;border-radius:8px;border:none;cursor:pointer;font-weight:bold;font-size:14px">
-          🔗 Ver y descargar en Holded
+          Ver y descargar en Holded
         </button>
       </div>
-      <p style="color:#6b7280;font-size:12px;margin-top:16px">En Holded podrás descargar el PDF desde el documento</p>
+      <p style="color:#6b7280;font-size:12px;margin-top:16px">Se abrira Holded en una pestana nueva</p>
     </body></html>`);
   } catch (error) {
     res.send(`<html><body style="font-family:sans-serif;padding:20px;background:#fef2f2;text-align:center">
-      <h2 style="color:#dc2626">❌ Error</h2>
+      <h2 style="color:#dc2626">Error</h2>
       <p>${error.response?.data?.info || error.message}</p>
     </body></html>`);
   }
@@ -116,7 +115,7 @@ app.get('/documentos-contacto', async (req, res) => {
     const { contactId } = await buscarContactoHolded(email, '');
     if (!contactId) {
       return res.send(`<html><body style="font-family:sans-serif;padding:20px;text-align:center">
-        <p>No se encontró el contacto en Holded.</p>
+        <p>No se encontro el contacto en Holded.</p>
       </body></html>`);
     }
 
@@ -131,26 +130,26 @@ app.get('/documentos-contacto', async (req, res) => {
     ].sort((a, b) => b.date - a.date).slice(0, 20);
 
     const formatFecha = (ts) => new Date(ts * 1000).toLocaleDateString('es-ES');
-    const formatEstado = (s, draft) => draft ? '📝 Borrador' : s === 1 ? '✅ Pagada' : '⏳ Pendiente';
+    const formatEstado = (s, draft) => draft ? 'Borrador' : s === 1 ? 'Pagada' : 'Pendiente';
 
-    const filas = docs.map(d => `
-      <tr style="border-bottom:1px solid #e5e7eb">
+    const filas = docs.map(d => {
+      const url = 'https://app.holded.com/sales/revenue#open:' + d.tipo + '-' + d.id;
+      return `<tr style="border-bottom:1px solid #e5e7eb">
         <td style="padding:8px">${d.tipoLabel}</td>
         <td style="padding:8px">${d.docNumber || '-'}</td>
         <td style="padding:8px">${formatFecha(d.date)}</td>
         <td style="padding:8px;text-align:right"><b>${d.total}€</b></td>
         <td style="padding:8px">${formatEstado(d.status, d.draft)}</td>
-        <td style="padding:8px">
-          <a href="https://app.holded.com/sales/revenue#open:${d.tipo}-${d.id}" target="_blank" style="color:#2563eb">Ver</a>
-        </td>
-      </tr>`).join('');
+        <td style="padding:8px"><button onclick="window.top.open('${url}', '_blank')" style="background:#2563eb;color:white;padding:4px 10px;border-radius:4px;border:none;cursor:pointer;font-size:12px">Ver</button></td>
+      </tr>`;
+    }).join('');
 
     res.send(`<html><body style="font-family:sans-serif;padding:16px;font-size:13px">
       <h3 style="margin-top:0">Documentos en Holded</h3>
       <table style="width:100%;border-collapse:collapse">
         <thead><tr style="background:#f3f4f6">
           <th style="padding:8px;text-align:left">Tipo</th>
-          <th style="padding:8px;text-align:left">Nº</th>
+          <th style="padding:8px;text-align:left">N</th>
           <th style="padding:8px;text-align:left">Fecha</th>
           <th style="padding:8px;text-align:right">Total</th>
           <th style="padding:8px;text-align:left">Estado</th>
@@ -161,9 +160,7 @@ app.get('/documentos-contacto', async (req, res) => {
       ${docs.length === 0 ? '<p>No hay documentos</p>' : ''}
     </body></html>`);
   } catch (error) {
-    res.send(`<html><body style="font-family:sans-serif;padding:20px">
-      <p>Error: ${error.message}</p>
-    </body></html>`);
+    res.send(`<html><body style="font-family:sans-serif;padding:20px"><p>Error: ${error.message}</p></body></html>`);
   }
 });
 
