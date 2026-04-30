@@ -29,12 +29,18 @@ async function buscarContactoHolded(email, nombre) {
 
 async function obtenerDatosHubSpot(hs_object_id) {
   try {
+    const props = [
+      'firstname','lastname','email','phone','mobilephone',
+      'calle_via','numero_calle','piso_puerta','city','state','zip',
+      'dni','nie','pasaporte','cedula'
+    ].join(',');
     const hsRes = await axios.get(
-      `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=firstname,lastname,email,phone,address,city,zip`,
+      `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=${props}`,
       { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
     );
     return hsRes.data.properties;
   } catch (e) {
+    console.log('Error HubSpot:', e.message);
     return {};
   }
 }
@@ -42,16 +48,23 @@ async function obtenerDatosHubSpot(hs_object_id) {
 app.get('/crear-documento', async (req, res) => {
   try {
     const { hs_object_id, servicio_id, tipo_documento, descuento, notas } = req.query;
-    let nombre = '', email = '', telefono = '', direccion = '', ciudad = '', cp = '';
+    let nombre = '', email = '', telefono = '', direccion = '', ciudad = '', cp = '', provincia = '', dni = '', nie = '', pasaporte = '';
 
     if (hs_object_id && HUBSPOT_TOKEN) {
       const p = await obtenerDatosHubSpot(hs_object_id);
       nombre = ((p.firstname || '') + ' ' + (p.lastname || '')).trim();
       email = p.email || '';
-      telefono = p.phone || '';
-      direccion = p.address || '';
+      telefono = p.phone || p.mobilephone || '';
+      const calle = p.calle_via || '';
+      const numero = p.numero_calle || '';
+      const piso = p.piso_puerta || '';
+      direccion = [calle, numero, piso].filter(Boolean).join(', ');
       ciudad = p.city || '';
       cp = p.zip || '';
+      provincia = p.state || '';
+      dni = p.dni || '';
+      nie = p.nie || '';
+      pasaporte = p.pasaporte || '';
     }
 
     const endpoint = tipo_documento === 'invoice' ? 'invoice' : tipo_documento === 'estimate' ? 'estimate' : 'proforma';
@@ -68,10 +81,13 @@ app.get('/crear-documento', async (req, res) => {
     } else {
       body.contactName = contactName;
       body.contactEmail = email;
-      body.contactPhone = telefono;
-      body.contactAddress = direccion;
-      body.contactCity = ciudad;
-      body.contactCp = cp;
+      if (telefono) body.contactPhone = telefono;
+      if (direccion) body.contactAddress = direccion;
+      if (ciudad) body.contactCity = ciudad;
+      if (cp) body.contactCp = cp;
+      if (provincia) body.contactProvince = provincia;
+      const docIdentidad = dni || nie || pasaporte || '';
+      if (docIdentidad) body.contactCode = docIdentidad;
     }
 
     const response = await axios.post(
