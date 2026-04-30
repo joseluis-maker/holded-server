@@ -89,9 +89,9 @@ app.get('/crear-documento', async (req, res) => {
       <h2 style="color:#16a34a">✅ ${tipoLabel} creada con éxito</h2>
       <p style="color:#374151">Para: <b>${nombre}</b></p>
       <div style="margin-top:24px">
-        <a href="${holdedUrl}" target="_blank" style="background:#2563eb;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
+        <button onclick="window.top.open('${holdedUrl}', '_blank')" style="background:#2563eb;color:white;padding:12px 24px;border-radius:8px;border:none;cursor:pointer;font-weight:bold;font-size:14px">
           🔗 Ver y descargar en Holded
-        </a>
+        </button>
       </div>
       <p style="color:#6b7280;font-size:12px;margin-top:16px">En Holded podrás descargar el PDF desde el documento</p>
     </body></html>`);
