@@ -239,6 +239,28 @@ app.get('/documentos-contacto', async (req, res) => {
   }
 });
 
+
+app.get('/contactos-asociados', async (req, res) => {
+  try {
+    const { hs_object_id } = req.query;
+    const assocRes = await axios.get(
+      `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}/associations/contacts`,
+      { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
+    );
+    const ids = assocRes.data.results.map(r => r.id);
+    if (ids.length === 0) return res.json([]);
+
+    const contactos = await Promise.all(ids.map(async id => {
+      const p = await obtenerDatosHubSpot(id);
+      const nombre = ((p.firstname || '') + ' ' + (p.lastname || '')).trim();
+      return { id, nombre };
+    }));
+    res.json(contactos);
+  } catch (error) {
+    res.json([]);
+  }
+});
+
 app.get('/', (req, res) => res.json({ status: 'ok' }));
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Servidor corriendo en puerto ' + PORT));
@@ -404,7 +426,7 @@ function prepararDatos(p) {
   };
 
 
-async function rellenarMI(rutaPdf, datos, tipo) {
+async function rellenarMI(rutaPdf, datos, tipo, datosFamiliar = null) {
   const pdfBytes = fs.readFileSync(rutaPdf);
   const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
   const form = pdfDoc.getForm();
@@ -448,6 +470,16 @@ async function rellenarMI(rutaPdf, datos, tipo) {
     const mapaECF = { 'soltero':'S','single':'S','casado':'C','married':'C','viudo':'V','widowed':'V','divorciado':'D','divorced':'D','separado':'Sp','separated':'Sp' };
     const ecValF = mapaECF[ecF];
     if (ecValF) try { form.getRadioGroup('DS_EC').select(ecValF); } catch(e) {}
+
+    // Datos del familiar que da derecho
+    if (datosFamiliar) {
+      setText('DFD_PASAP',  datosFamiliar.pasaporte);
+      setText('DFD_NIE_1',  datosFamiliar.nie_letra);
+      setText('DFD_NIE_2',  datosFamiliar.nie_numero);
+      setText('DFD_NIE_3',  datosFamiliar.nie_control);
+      setText('DFD_APE1',   datosFamiliar.apellido1 + ' ' + datosFamiliar.apellido2);
+      setText('DFD_NOMBRE', datosFamiliar.firstname);
+    }
   } else if (tipo === 'MI-T') {
     setText('DEX_PASA',    datos.pasaporte);
     setText('DEX_NIE1',    datos.nie_letra);
@@ -490,7 +522,7 @@ async function rellenarMI(rutaPdf, datos, tipo) {
   return await pdfDoc.save();
 }
 
-async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false, formulario = '') {
+async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false, formulario = '', datosFamiliar = null) {
   const pdfBytes = fs.readFileSync(rutaPdf);
   const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
   const form = pdfDoc.getForm();
@@ -569,6 +601,28 @@ async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false, 
     campos.forEach((c, i) => { try { form.getTextField(c).setText(vals[i]); } catch(e) {} });
   }
 
+  // Datos del familiar/reagrupante/empleador asociado
+  if (datosFamiliar) {
+    const MAPA_FAMILIAR = {
+      'EX01': { pas:'Texto27', nie1:'Texto28', nie2:'Texto29', nie3:'Texto30', ape:'Texto31', nom:'Texto32' },
+      'EX02': { pas:'Texto30', nie1:'Texto31', nie2:'Texto32', nie3:'Texto33', ape:'Texto34', nom:'Texto35' },
+      'EX06': { nom:'Texto36', dni:'Texto37' },
+      'EX19': { pas:'Texto27', nie1:'Texto28', nie2:'Texto29', nie3:'Texto30', ape:'Texto31', nom:'Texto32' },
+      'EX21': { pas:'Texto27', nie1:'Texto28', nie2:'Texto29', nie3:'Texto30', ape:'Texto31', nom:'Texto32' },
+      'EX24': { pas:'Texto35', nie1:'Texto36', nie3:'Texto37', ape:'Texto38', nom:'Texto39' },
+    };
+    const mf = MAPA_FAMILIAR[formulario];
+    if (mf) {
+      if (mf.pas) try { form.getTextField(mf.pas).setText(datosFamiliar.pasaporte || ''); } catch(e) {}
+      if (mf.nie1) try { form.getTextField(mf.nie1).setText(datosFamiliar.nie_letra || ''); } catch(e) {}
+      if (mf.nie2) try { form.getTextField(mf.nie2).setText(datosFamiliar.nie_numero || ''); } catch(e) {}
+      if (mf.nie3) try { form.getTextField(mf.nie3).setText(datosFamiliar.nie_control || ''); } catch(e) {}
+      if (mf.ape) try { form.getTextField(mf.ape).setText((datosFamiliar.apellido1 + ' ' + datosFamiliar.apellido2).trim() || ''); } catch(e) {}
+      if (mf.nom) try { form.getTextField(mf.nom).setText(datosFamiliar.firstname || ''); } catch(e) {}
+      if (mf.dni) try { form.getTextField(mf.dni).setText(datosFamiliar.dni || datosFamiliar.nie_letra + datosFamiliar.nie_numero + datosFamiliar.nie_control || ''); } catch(e) {}
+    }
+  }
+
   // Fecha de firma: se completa a mano
 
   form.flatten();
@@ -631,7 +685,7 @@ async function rellenarEX01(rutaPdf, datos) {
 
 app.get('/rellenar-formulario', async (req, res) => {
   try {
-    const { hs_object_id, formulario, representante } = req.query;
+    const { hs_object_id, formulario, representante, familiar_id } = req.query;
     const conRepresentante = representante === 'si';
 
     if (!formulario || !FORMULARIOS[formulario]) {
@@ -646,13 +700,20 @@ app.get('/rellenar-formulario', async (req, res) => {
 
     const p = await obtenerDatosHubSpot(hs_object_id);
     const datos = prepararDatos(p);
+    
+    // Datos del familiar asociado si se proporciona
+    let datosFamiliar = null;
+    if (familiar_id) {
+      const pFamiliar = await obtenerDatosHubSpot(familiar_id);
+      datosFamiliar = prepararDatos(pFamiliar);
+    }
     const rutaPdf = path.join(__dirname, 'formularios', FORMULARIOS[formulario]);
 
     let pdfBytes;
     if (formulario === 'MI-F' || formulario === 'MI-T') {
-      pdfBytes = await rellenarMI(rutaPdf, datos, formulario);
+      pdfBytes = await rellenarMI(rutaPdf, datos, formulario, datosFamiliar);
     } else {
-      pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante, formulario);
+      pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante, formulario, datosFamiliar);
     }
 
     const nombre = `${formulario}_${datos.apellido1}_${datos.firstname}.pdf`.replace(/\s+/g, '_');
