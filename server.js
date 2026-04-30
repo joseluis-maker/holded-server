@@ -14,6 +14,19 @@ app.use((req, res, next) => {
 const HOLDED_API_KEY = process.env.HOLDED_API_KEY;
 const HUBSPOT_TOKEN = process.env.HUBSPOT_TOKEN;
 
+const RETENCION_MAP = {
+  '7': 's_ret_7',
+  '15': 's_ret_15',
+  '19': 's_ret_19',
+};
+
+const IVA_MAP = {
+  '0': 's_iva_0',
+  '4': 's_iva_4',
+  '10': 's_iva_10',
+  '21': 's_iva_21',
+};
+
 app.get('/crear-documento', async (req, res) => {
   try {
     const { hs_object_id, servicio_id, tipo_documento, iva, retencion, descuento, forma_pago, notas } = req.query;
@@ -37,6 +50,10 @@ app.get('/crear-documento', async (req, res) => {
 
     const endpoint = tipo_documento === 'invoice' ? 'invoice' : tipo_documento === 'estimate' ? 'estimate' : 'proforma';
 
+    const taxes = [];
+    if (iva && IVA_MAP[iva]) taxes.push(IVA_MAP[iva]);
+    if (retencion && retencion !== '0' && RETENCION_MAP[retencion]) taxes.push(RETENCION_MAP[retencion]);
+
     const body = {
       contactName: nombre,
       contactEmail: email,
@@ -45,8 +62,7 @@ app.get('/crear-documento', async (req, res) => {
       items: [{
         serviceId: servicio_id,
         units: 1,
-        tax: parseFloat(iva) || 21,
-        retention: parseFloat(retencion) || 0,
+        taxes,
         discount: parseFloat(descuento) || 0,
       }],
     };
