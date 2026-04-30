@@ -603,18 +603,18 @@ async function rellenarDESG2(rutaPdf, datos) {
   };
 
   // Datos del cliente (sección superior)
-  escribir(datos.firstname,           150,  137);
+  escribir(datos.firstname,            93,  137);
   escribir(datos.apellido1,           310,  137);
   escribir(datos.apellido2,           480,  137);
   escribir(datos.nacionalidad,        150,  155);
   escribir(datos.nie_letra + datos.nie_numero + datos.nie_control, 310, 155);
   escribir(datos.pasaporte,           460,  155);
-  escribir(datos.fecha_dia,           165,  173);
-  escribir(datos.fecha_mes,           190,  173);
-  escribir(datos.fecha_anio,          215,  173);
+  escribir(datos.fecha_dia,           108,  173);
+  escribir(datos.fecha_mes,           133,  173);
+  escribir(datos.fecha_anio,          158,  173);
   escribir(datos.lugar_de_nacimiento, 310,  173);
-  escribir(datos.pais_de_nacimiento,  480,  173);
-  escribir(datos.nombre_padre,        150,  191);
+  escribir(datos.pais_de_nacimiento,  423,  173);
+  escribir(datos.nombre_padre,         93,  191);
   escribir(datos.nombre_madre,        310,  191);
   escribir(datos.address,             150,  207);
   escribir(datos.numero_calle,        490,  207);
