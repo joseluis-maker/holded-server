@@ -23,38 +23,57 @@ async function buscarContactoHolded(email, nombre) {
     if (res.data && res.data.length > 0) {
       return { contactId: res.data[0].id, contactName: null };
     }
-  } catch (e) {
-    console.log('Error buscando contacto en Holded:', e.message);
-  }
+  } catch (e) {}
   return { contactId: null, contactName: nombre };
+}
+
+async function obtenerDatosHubSpot(hs_object_id) {
+  try {
+    const hsRes = await axios.get(
+      `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=firstname,lastname,email,phone,address,city,zip,hs_language`,
+      { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
+    );
+    return hsRes.data.properties;
+  } catch (e) {
+    console.log('Error HubSpot:', e.message);
+    return {};
+  }
 }
 
 app.get('/crear-documento', async (req, res) => {
   try {
     const { hs_object_id, servicio_id, tipo_documento, descuento, notas } = req.query;
-    let nombre = '', email = '';
+    let nombre = '', email = '', telefono = '', direccion = '', ciudad = '', cp = '';
 
     if (hs_object_id && HUBSPOT_TOKEN) {
-      try {
-        const hsRes = await axios.get(
-          `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=firstname,lastname,email`,
-          { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
-        );
-        const p = hsRes.data.properties;
-        nombre = ((p.firstname || '') + ' ' + (p.lastname || '')).trim();
-        email = p.email || '';
-      } catch (e) { console.log('Error HubSpot:', e.message); }
+      const p = await obtenerDatosHubSpot(hs_object_id);
+      nombre = ((p.firstname || '') + ' ' + (p.lastname || '')).trim();
+      email = p.email || '';
+      telefono = p.phone || '';
+      direccion = p.address || '';
+      ciudad = p.city || '';
+      cp = p.zip || '';
     }
 
     const endpoint = tipo_documento === 'invoice' ? 'invoice' : tipo_documento === 'estimate' ? 'estimate' : 'proforma';
     const { contactId, contactName } = await buscarContactoHolded(email, nombre);
+
     const body = {
       date: Math.floor(Date.now() / 1000),
       notes: notas || '',
       items: [{ serviceId: servicio_id, units: 1, discount: parseFloat(descuento) || 0 }],
     };
-    if (contactId) body.contactId = contactId;
-    else { body.contactName = contactName; body.contactEmail = email; }
+
+    if (contactId) {
+      body.contactId = contactId;
+    } else {
+      body.contactName = contactName;
+      body.contactEmail = email;
+      body.contactPhone = telefono;
+      body.contactAddress = direccion;
+      body.contactCity = ciudad;
+      body.contactCp = cp;
+    }
 
     const response = await axios.post(
       'https://api.holded.com/api/invoicing/v1/documents/' + endpoint,
@@ -64,20 +83,17 @@ app.get('/crear-documento', async (req, res) => {
 
     const docId = response.data.id;
     const tipoLabel = tipo_documento === 'invoice' ? 'Factura' : tipo_documento === 'estimate' ? 'Presupuesto' : 'Proforma';
-    const pdfUrl = `https://holded-server.onrender.com/pdf-documento?tipo=${endpoint}&id=${docId}`;
     const holdedUrl = `https://app.holded.com/sales/revenue#open:${endpoint}-${docId}`;
 
     res.send(`<html><body style="font-family:sans-serif;padding:24px;background:#f0fdf4;text-align:center">
       <h2 style="color:#16a34a">✅ ${tipoLabel} creada con éxito</h2>
       <p style="color:#374151">Para: <b>${nombre}</b></p>
-      <div style="margin-top:24px;display:flex;flex-direction:column;gap:12px;align-items:center">
-        <a href="${pdfUrl}" target="_blank" style="background:#2563eb;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
-          📄 Descargar PDF
-        </a>
-        <a href="${holdedUrl}" target="_blank" style="background:#f3f4f6;color:#374151;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
-          🔗 Ver en Holded
+      <div style="margin-top:24px">
+        <a href="${holdedUrl}" target="_blank" style="background:#2563eb;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
+          🔗 Ver y descargar en Holded
         </a>
       </div>
+      <p style="color:#6b7280;font-size:12px;margin-top:16px">En Holded podrás descargar el PDF desde el documento</p>
     </body></html>`);
   } catch (error) {
     res.send(`<html><body style="font-family:sans-serif;padding:20px;background:#fef2f2;text-align:center">
@@ -87,39 +103,19 @@ app.get('/crear-documento', async (req, res) => {
   }
 });
 
-app.get('/pdf-documento', async (req, res) => {
-  try {
-    const { tipo, id } = req.query;
-    const response = await axios.get(
-      `https://api.holded.com/api/invoicing/v1/documents/${tipo}/${id}/pdf`,
-      { headers: { key: HOLDED_API_KEY }, responseType: 'arraybuffer' }
-    );
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${tipo}-${id}.pdf"`);
-    res.send(response.data);
-  } catch (error) {
-    res.status(500).send('Error descargando PDF');
-  }
-});
-
 app.get('/documentos-contacto', async (req, res) => {
   try {
     const { hs_object_id } = req.query;
     let email = '';
 
     if (hs_object_id && HUBSPOT_TOKEN) {
-      try {
-        const hsRes = await axios.get(
-          `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=email`,
-          { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
-        );
-        email = hsRes.data.properties.email || '';
-      } catch (e) { console.log('Error HubSpot:', e.message); }
+      const p = await obtenerDatosHubSpot(hs_object_id);
+      email = p.email || '';
     }
 
     const { contactId } = await buscarContactoHolded(email, '');
     if (!contactId) {
-      return res.send(`<html><body style="font-family:sans-serif;padding:20px">
+      return res.send(`<html><body style="font-family:sans-serif;padding:20px;text-align:center">
         <p>No se encontró el contacto en Holded.</p>
       </body></html>`);
     }
@@ -145,7 +141,7 @@ app.get('/documentos-contacto', async (req, res) => {
         <td style="padding:8px;text-align:right"><b>${d.total}€</b></td>
         <td style="padding:8px">${formatEstado(d.status, d.draft)}</td>
         <td style="padding:8px">
-          <a href="https://holded-server.onrender.com/pdf-documento?tipo=${d.tipo}&id=${d.id}" target="_blank" style="color:#2563eb">PDF</a>
+          <a href="https://app.holded.com/sales/revenue#open:${d.tipo}-${d.id}" target="_blank" style="color:#2563eb">Ver</a>
         </td>
       </tr>`).join('');
 
@@ -158,7 +154,7 @@ app.get('/documentos-contacto', async (req, res) => {
           <th style="padding:8px;text-align:left">Fecha</th>
           <th style="padding:8px;text-align:right">Total</th>
           <th style="padding:8px;text-align:left">Estado</th>
-          <th style="padding:8px;text-align:left">PDF</th>
+          <th style="padding:8px;text-align:left">Ver</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
