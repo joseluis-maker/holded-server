@@ -61,15 +61,44 @@ app.get('/crear-documento', async (req, res) => {
       body,
       { headers: { key: HOLDED_API_KEY, 'Content-Type': 'application/json' } }
     );
-    res.send(`<html><body style="font-family:sans-serif;padding:20px;background:#f0fdf4">
-      <h2 style="color:#16a34a">✅ Documento creado con éxito</h2>
-      <p>El documento ha sido creado correctamente en Holded.</p>
+
+    const docId = response.data.id;
+    const tipoLabel = tipo_documento === 'invoice' ? 'Factura' : tipo_documento === 'estimate' ? 'Presupuesto' : 'Proforma';
+    const pdfUrl = `https://holded-server.onrender.com/pdf-documento?tipo=${endpoint}&id=${docId}`;
+    const holdedUrl = `https://app.holded.com/sales/revenue#open:${endpoint}-${docId}`;
+
+    res.send(`<html><body style="font-family:sans-serif;padding:24px;background:#f0fdf4;text-align:center">
+      <h2 style="color:#16a34a">✅ ${tipoLabel} creada con éxito</h2>
+      <p style="color:#374151">Para: <b>${nombre}</b></p>
+      <div style="margin-top:24px;display:flex;flex-direction:column;gap:12px;align-items:center">
+        <a href="${pdfUrl}" target="_blank" style="background:#2563eb;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
+          📄 Descargar PDF
+        </a>
+        <a href="${holdedUrl}" target="_blank" style="background:#f3f4f6;color:#374151;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">
+          🔗 Ver en Holded
+        </a>
+      </div>
     </body></html>`);
   } catch (error) {
-    res.send(`<html><body style="font-family:sans-serif;padding:20px;background:#fef2f2">
+    res.send(`<html><body style="font-family:sans-serif;padding:20px;background:#fef2f2;text-align:center">
       <h2 style="color:#dc2626">❌ Error</h2>
       <p>${error.response?.data?.info || error.message}</p>
     </body></html>`);
+  }
+});
+
+app.get('/pdf-documento', async (req, res) => {
+  try {
+    const { tipo, id } = req.query;
+    const response = await axios.get(
+      `https://api.holded.com/api/invoicing/v1/documents/${tipo}/${id}/pdf`,
+      { headers: { key: HOLDED_API_KEY }, responseType: 'arraybuffer' }
+    );
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${tipo}-${id}.pdf"`);
+    res.send(response.data);
+  } catch (error) {
+    res.status(500).send('Error descargando PDF');
   }
 });
 
@@ -101,20 +130,23 @@ app.get('/documentos-contacto', async (req, res) => {
     ]);
 
     const docs = [
-      ...facturas.data.map(d => ({ ...d, tipo: 'Factura' })),
-      ...presupuestos.data.map(d => ({ ...d, tipo: 'Presupuesto' })),
+      ...facturas.data.map(d => ({ ...d, tipo: 'invoice', tipoLabel: 'Factura' })),
+      ...presupuestos.data.map(d => ({ ...d, tipo: 'estimate', tipoLabel: 'Presupuesto' })),
     ].sort((a, b) => b.date - a.date).slice(0, 20);
 
     const formatFecha = (ts) => new Date(ts * 1000).toLocaleDateString('es-ES');
-    const formatEstado = (s, draft) => draft ? 'Borrador' : s === 1 ? '✅ Pagada' : '⏳ Pendiente';
+    const formatEstado = (s, draft) => draft ? '📝 Borrador' : s === 1 ? '✅ Pagada' : '⏳ Pendiente';
 
     const filas = docs.map(d => `
       <tr style="border-bottom:1px solid #e5e7eb">
-        <td style="padding:8px">${d.tipo}</td>
-        <td style="padding:8px">${d.docNumber || 'Borrador'}</td>
+        <td style="padding:8px">${d.tipoLabel}</td>
+        <td style="padding:8px">${d.docNumber || '-'}</td>
         <td style="padding:8px">${formatFecha(d.date)}</td>
         <td style="padding:8px;text-align:right"><b>${d.total}€</b></td>
         <td style="padding:8px">${formatEstado(d.status, d.draft)}</td>
+        <td style="padding:8px">
+          <a href="https://holded-server.onrender.com/pdf-documento?tipo=${d.tipo}&id=${d.id}" target="_blank" style="color:#2563eb">PDF</a>
+        </td>
       </tr>`).join('');
 
     res.send(`<html><body style="font-family:sans-serif;padding:16px;font-size:13px">
@@ -126,6 +158,7 @@ app.get('/documentos-contacto', async (req, res) => {
           <th style="padding:8px;text-align:left">Fecha</th>
           <th style="padding:8px;text-align:right">Total</th>
           <th style="padding:8px;text-align:left">Estado</th>
+          <th style="padding:8px;text-align:left">PDF</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
