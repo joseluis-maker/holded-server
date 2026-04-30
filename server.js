@@ -88,7 +88,7 @@ app.get('/crear-documento', async (req, res) => {
       <h2 style="color:#16a34a">&#10003; ${tipoLabel} creada con exito</h2>
       <p style="color:#374151">Para: <b>${nombre}</b></p>
       <div style="margin-top:24px">
-        <button onclick="window.top.open('${holdedUrl}', '_blank')" style="background:#2563eb;color:white;padding:12px 24px;border-radius:8px;border:none;cursor:pointer;font-weight:bold;font-size:14px">
+        <button onclick="window.open('${holdedUrl}', '_blank')" style="background:#2563eb;color:white;padding:12px 24px;border-radius:8px;border:none;cursor:pointer;font-weight:bold;font-size:14px">
           Ver y descargar en Holded
         </button>
       </div>
@@ -140,7 +140,7 @@ app.get('/documentos-contacto', async (req, res) => {
         <td style="padding:8px">${formatFecha(d.date)}</td>
         <td style="padding:8px;text-align:right"><b>${d.total}€</b></td>
         <td style="padding:8px">${formatEstado(d.status, d.draft)}</td>
-        <td style="padding:8px"><button onclick="window.top.open('${url}', '_blank')" style="background:#2563eb;color:white;padding:4px 10px;border-radius:4px;border:none;cursor:pointer;font-size:12px">Ver</button></td>
+        <td style="padding:8px"><button onclick="window.open('${url}', '_blank')" style="background:#2563eb;color:white;padding:4px 10px;border-radius:4px;border:none;cursor:pointer;font-size:12px">Ver</button></td>
       </tr>`;
     }).join('');
 
