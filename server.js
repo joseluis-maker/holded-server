@@ -32,53 +32,44 @@ async function buscarContactoHolded(email, nombre) {
 app.get('/crear-documento', async (req, res) => {
   try {
     const { hs_object_id, servicio_id, tipo_documento, descuento, notas } = req.query;
-
-    let nombre = '';
-    let email = '';
+    let nombre = '', email = '';
 
     if (hs_object_id && HUBSPOT_TOKEN) {
       try {
         const hsRes = await axios.get(
-          `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=firstname,lastname,email,company,phone`,
+          `https://api.hubapi.com/crm/v3/objects/contacts/${hs_object_id}?properties=firstname,lastname,email`,
           { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
         );
         const p = hsRes.data.properties;
         nombre = ((p.firstname || '') + ' ' + (p.lastname || '')).trim();
         email = p.email || '';
-      } catch (e) {
-        console.log('Error obteniendo contacto de HubSpot:', e.message);
-      }
+      } catch (e) { console.log('Error HubSpot:', e.message); }
     }
 
     const endpoint = tipo_documento === 'invoice' ? 'invoice' : tipo_documento === 'estimate' ? 'estimate' : 'proforma';
-
     const { contactId, contactName } = await buscarContactoHolded(email, nombre);
-
     const body = {
       date: Math.floor(Date.now() / 1000),
       notes: notas || '',
-      items: [{
-        serviceId: servicio_id,
-        units: 1,
-        discount: parseFloat(descuento) || 0,
-      }],
+      items: [{ serviceId: servicio_id, units: 1, discount: parseFloat(descuento) || 0 }],
     };
-
-    if (contactId) {
-      body.contactId = contactId;
-    } else {
-      body.contactName = contactName;
-      body.contactEmail = email;
-    }
+    if (contactId) body.contactId = contactId;
+    else { body.contactName = contactName; body.contactEmail = email; }
 
     const response = await axios.post(
       'https://api.holded.com/api/invoicing/v1/documents/' + endpoint,
       body,
       { headers: { key: HOLDED_API_KEY, 'Content-Type': 'application/json' } }
     );
-    res.json({ success: true, data: response.data });
+    res.send(`<html><body style="font-family:sans-serif;padding:20px;background:#f0fdf4">
+      <h2 style="color:#16a34a">✅ Documento creado con éxito</h2>
+      <p>El documento ha sido creado correctamente en Holded.</p>
+    </body></html>`);
   } catch (error) {
-    res.status(500).json({ success: false, error: error.response?.data || error.message });
+    res.send(`<html><body style="font-family:sans-serif;padding:20px;background:#fef2f2">
+      <h2 style="color:#dc2626">❌ Error</h2>
+      <p>${error.response?.data?.info || error.message}</p>
+    </body></html>`);
   }
 });
 
@@ -94,13 +85,15 @@ app.get('/documentos-contacto', async (req, res) => {
           { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}` } }
         );
         email = hsRes.data.properties.email || '';
-      } catch (e) {
-        console.log('Error obteniendo email de HubSpot:', e.message);
-      }
+      } catch (e) { console.log('Error HubSpot:', e.message); }
     }
 
     const { contactId } = await buscarContactoHolded(email, '');
-    if (!contactId) return res.json({ success: true, documentos: [] });
+    if (!contactId) {
+      return res.send(`<html><body style="font-family:sans-serif;padding:20px">
+        <p>No se encontró el contacto en Holded.</p>
+      </body></html>`);
+    }
 
     const [facturas, presupuestos] = await Promise.all([
       axios.get(`https://api.holded.com/api/invoicing/v1/documents/invoice?contactId=${contactId}`, { headers: { key: HOLDED_API_KEY } }),
@@ -110,11 +103,38 @@ app.get('/documentos-contacto', async (req, res) => {
     const docs = [
       ...facturas.data.map(d => ({ ...d, tipo: 'Factura' })),
       ...presupuestos.data.map(d => ({ ...d, tipo: 'Presupuesto' })),
-    ].sort((a, b) => b.date - a.date);
+    ].sort((a, b) => b.date - a.date).slice(0, 20);
 
-    res.json({ success: true, documentos: docs });
+    const formatFecha = (ts) => new Date(ts * 1000).toLocaleDateString('es-ES');
+    const formatEstado = (s, draft) => draft ? 'Borrador' : s === 1 ? '✅ Pagada' : '⏳ Pendiente';
+
+    const filas = docs.map(d => `
+      <tr style="border-bottom:1px solid #e5e7eb">
+        <td style="padding:8px">${d.tipo}</td>
+        <td style="padding:8px">${d.docNumber || 'Borrador'}</td>
+        <td style="padding:8px">${formatFecha(d.date)}</td>
+        <td style="padding:8px;text-align:right"><b>${d.total}€</b></td>
+        <td style="padding:8px">${formatEstado(d.status, d.draft)}</td>
+      </tr>`).join('');
+
+    res.send(`<html><body style="font-family:sans-serif;padding:16px;font-size:13px">
+      <h3 style="margin-top:0">Documentos en Holded</h3>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:#f3f4f6">
+          <th style="padding:8px;text-align:left">Tipo</th>
+          <th style="padding:8px;text-align:left">Nº</th>
+          <th style="padding:8px;text-align:left">Fecha</th>
+          <th style="padding:8px;text-align:right">Total</th>
+          <th style="padding:8px;text-align:left">Estado</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      ${docs.length === 0 ? '<p>No hay documentos</p>' : ''}
+    </body></html>`);
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.send(`<html><body style="font-family:sans-serif;padding:20px">
+      <p>Error: ${error.message}</p>
+    </body></html>`);
   }
 });
 
