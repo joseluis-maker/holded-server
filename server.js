@@ -277,6 +277,8 @@ const FORMULARIOS = {
   'EX29': 'EX29. Formulario solicitud de prórroga de estancia de corta duración. Editable.pdf',
   'EX31': 'EX31. Formulario autorización de residencia por circunstancias excepcionales por razón de arraigo. Solicitantes PI (DA20º). Editable_.pdf',
   'EX32': 'EX32. Formulario autorización de residencia por circunstancias excepcionales por razón de arraigo extraordinario (DA21º). Editable.pdf',
+  'MI-F': 'MI_F ABRIL_2021_v12_editable.pdf',
+  'MI-T': 'MI_T ABRIL_2021_v10_editable.pdf',
 };
 
 // Mapeo EX13: campo -> nombre HubSpot
@@ -400,6 +402,93 @@ function prepararDatos(p) {
     telefono: '619934302',
     email: 'INFO@ROBLESEXTRANJERIA.COM',
   };
+
+
+async function rellenarMI(rutaPdf, datos, tipo) {
+  const pdfBytes = fs.readFileSync(rutaPdf);
+  const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+  const form = pdfDoc.getForm();
+
+  const setText = (campo, valor) => { try { form.getTextField(campo).setText(valor || ''); } catch(e) {} };
+  const checkRadio = (campo, valor) => { try { form.getRadioGroup(campo).select(valor); } catch(e) {} };
+
+  if (tipo === 'MI-F') {
+    setText('DS_PASAP',    datos.pasaporte);
+    setText('DS_NIE_1',    datos.nie_letra);
+    setText('DS_NIE_2',    datos.nie_numero);
+    setText('DS_NIE_3',    datos.nie_control);
+    setText('DS_APE1',     datos.apellido1 + ' ' + datos.apellido2);
+    setText('DS_NOMBRE',   datos.firstname);
+    setText('DS_LN',       datos.lugar_de_nacimiento);
+    setText('DS_DIA_NAC',  datos.fecha_dia);
+    setText('DS_MES_NAC',  datos.fecha_mes);
+    setText('DS_ANYO_NAC', datos.fecha_anio);
+    setText('DS_PAIS',     datos.pais_de_nacimiento);
+    setText('DS_NACION',   datos.nacionalidad);
+    setText('DS_NP',       datos.nombre_padre);
+    setText('DS_NM',       datos.nombre_madre);
+    setText('DS_DOMIC',    datos.address);
+    setText('DS_NUM',      datos.numero_calle);
+    setText('DS_PISO',     datos.piso_puerta);
+    setText('DS_LOCAL',    datos.city);
+    setText('DS_CP',       datos.zip);
+    setText('DS_PROV',     datos.state);
+    setText('DS_TFNO_FIJO',datos.phone);
+    setText('DS_EMAIL',    datos.email);
+
+    // Sexo
+    const sexoF = datos.sexo?.toLowerCase();
+    if (sexoF === 'h' || sexoF === 'hombre') {
+      try { form.getRadioGroup('DS_SEXO').select('H'); } catch(e) {}
+    } else if (sexoF === 'm' || sexoF === 'mujer') {
+      try { form.getRadioGroup('DS_SEXO').select('M'); } catch(e) {}
+    }
+    // Estado civil
+    const ecF = datos.estado_civil?.toLowerCase();
+    const mapaECF = { 'soltero':'S','single':'S','casado':'C','married':'C','viudo':'V','widowed':'V','divorciado':'D','divorced':'D','separado':'Sp','separated':'Sp' };
+    const ecValF = mapaECF[ecF];
+    if (ecValF) try { form.getRadioGroup('DS_EC').select(ecValF); } catch(e) {}
+  } else if (tipo === 'MI-T') {
+    setText('DEX_PASA',    datos.pasaporte);
+    setText('DEX_NIE1',    datos.nie_letra);
+    setText('DEX_NIE_2',   datos.nie_numero);
+    setText('DEX_NIE_3',   datos.nie_control);
+    setText('DEX_APE1',    datos.apellido1 + ' ' + datos.apellido2);
+    setText('DEX_NOMBRE',  datos.firstname);
+    setText('DEX_LN',      datos.lugar_de_nacimiento);
+    setText('DEX_DIA_NAC', datos.fecha_dia);
+    setText('DEX_MES_NAC', datos.fecha_mes);
+    setText('DEX_ANYO_NAC',datos.fecha_anio);
+    setText('DEX_PAIS',    datos.pais_de_nacimiento);
+    setText('DEX_NACION',  datos.nacionalidad);
+    setText('DEX_NP',      datos.nombre_padre);
+    setText('DEX_NM',      datos.nombre_madre);
+    setText('DEX_DOMIC',   datos.address);
+    setText('DEX_NUM',     datos.numero_calle);
+    setText('DEX_PISO',    datos.piso_puerta);
+    setText('DEX_LOCAL',   datos.city);
+    setText('DEX_CP',      datos.zip);
+    setText('DEX_PROV',    datos.state);
+    setText('DEX_TFNO',    datos.phone);
+    setText('DEX_EMAIL',   datos.email);
+
+    // Sexo
+    const sexoT = datos.sexo?.toLowerCase();
+    if (sexoT === 'h' || sexoT === 'hombre') {
+      try { form.getRadioGroup('DEX_SEXO').select('H'); } catch(e) {}
+    } else if (sexoT === 'm' || sexoT === 'mujer') {
+      try { form.getRadioGroup('DEX_SEXO').select('M'); } catch(e) {}
+    }
+    // Estado civil
+    const ecT = datos.estado_civil?.toLowerCase();
+    const mapaECT = { 'soltero':'S','single':'S','casado':'C','married':'C','viudo':'V','widowed':'V','divorciado':'D','divorced':'D','separado':'Sp','separated':'Sp' };
+    const ecValT = mapaECT[ecT];
+    if (ecValT) try { form.getRadioGroup('DEX_EC').select(ecValT); } catch(e) {}
+  }
+
+  form.flatten();
+  return await pdfDoc.save();
+}
 
 async function rellenarEditable(rutaPdf, mapa, datos, conRepresentante = false, formulario = '') {
   const pdfBytes = fs.readFileSync(rutaPdf);
@@ -560,7 +649,11 @@ app.get('/rellenar-formulario', async (req, res) => {
     const rutaPdf = path.join(__dirname, 'formularios', FORMULARIOS[formulario]);
 
     let pdfBytes;
-    pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante, formulario);
+    if (formulario === 'MI-F' || formulario === 'MI-T') {
+      pdfBytes = await rellenarMI(rutaPdf, datos, formulario);
+    } else {
+      pdfBytes = await rellenarEditable(rutaPdf, MAPA_EX13, datos, conRepresentante, formulario);
+    }
 
     const nombre = `${formulario}_${datos.apellido1}_${datos.firstname}.pdf`.replace(/\s+/g, '_');
     res.setHeader('Content-Type', 'application/pdf');
