@@ -479,6 +479,7 @@ async function rellenarConPython(rutaPdf, datos, tipo, datosFamiliar = null) {
     'pais':               datos.pais_de_nacimiento,
     'NIE':                datos.nie_letra + datos.nie_numero + datos.nie_control,
     'NombrePadre':        datos.nombre_padre,
+    'mandoEjercito':      'NO',
     'NombreMadre':        datos.nombre_madre,
     'nacionalidadNIE':    datos.nacionalidad,
     // Domicilio
