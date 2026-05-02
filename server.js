@@ -552,8 +552,9 @@ async function rellenarConPython(rutaPdf, datos, tipo, datosFamiliar = null) {
 
   const campos = tipo === 'NAC' ? camposNAC : camposJURA;
   const tmpJson = os.tmpdir() + '/campos_' + Date.now() + '.json';
-  fs.writeFileSync(tmpJson, JSON.stringify(campos), 'utf8');
-  execSync(`python3 ${__dirname}/fill_pdf.py "${rutaPdf}" "${tmpOut}" "${tmpJson}"`);
+  fs.writeFileSync(tmpJson, Buffer.from(JSON.stringify(campos), 'utf8'));
+  if (tipo === 'JURA') console.log('JURA campos:', JSON.stringify(campos));
+  try { const r = require("child_process").execSync(`python3 ${__dirname}/fill_pdf.py "${rutaPdf}" "${tmpOut}" "${tmpJson}" 2>&1`); console.log("Python OK:", r.toString()); } catch(e) { console.log("Python ERROR:", e.stdout?.toString(), e.stderr?.toString()); throw e; }
   try { fs.unlinkSync(tmpJson); } catch(e) {}
   const result = fs.readFileSync(tmpOut);
   fs.unlinkSync(tmpOut);
@@ -612,19 +613,49 @@ async function rellenarNAC(rutaPdf, datos) {
 async function rellenarJURA(rutaPdf, datos) {
   const pdfBytes = fs.readFileSync(rutaPdf);
   const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
-  const form = pdfDoc.getForm();
-  const set = (c, v) => { try { form.getTextField(c).setText(v || ''); } catch(e) {} };
+  const pages = pdfDoc.getPages();
+  const page = pages[0];
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const size = 8;
+  const color = rgb(0, 0, 0);
+  const alto = page.getHeight();
+  const inv = (y) => alto - y - 8;
 
-  set('COMPARECE quien acredita ser', datos.firstname + ' ' + datos.apellido1 + ' ' + datos.apellido2);
-  set('nacidoa en',          datos.lugar_de_nacimiento);
-  set('el día',              datos.fecha_dia);
-  set('de_3',                datos.fecha_mes);
-  set('de_4',                datos.fecha_anio);
-  set('de nacionalidad',     datos.nacionalidad);
-  set('de residencia en España n', datos.nie_letra + datos.nie_numero + datos.nie_control);
-  set('asistido por',        'JOSE LUIS ROBLES CRIADO');
-  set('Nombre',              datos.firstname);
-  set('Apellidos',           datos.apellido1 + ' ' + datos.apellido2);
+  const escribir = (texto, x, y) => {
+    if (!texto) return;
+    page.drawText(String(texto), { x, y: inv(y), size, font, color });
+  };
+
+  // Línea 1: En __, a __ de __ de __
+  const hoy = new Date();
+  escribir('MADRID',                              102, 119);
+  escribir(String(hoy.getDate()),                 215, 119);
+  escribir(hoy.toLocaleString('es-ES',{month:'long'}).toUpperCase(), 258, 119);
+  escribir(String(hoy.getFullYear()),             362, 119);
+
+  // Línea 2: COMPARECE quien acredita ser __, nacido/a en __
+  escribir(datos.firstname + ' ' + datos.apellido1 + ' ' + datos.apellido2, 250, 162);
+  escribir(datos.lugar_de_nacimiento,             438, 162);
+
+  // Línea 3: el día __ de __ de __, de nacionalidad __
+  escribir(datos.fecha_dia,                       115, 184);
+  escribir(datos.fecha_mes,                       157, 184);
+  escribir(datos.fecha_anio,                      249, 184);
+  escribir(datos.nacionalidad,                    365, 184);
+
+  // Línea 4: de residencia en España nº __, asistido por __
+  escribir(datos.nie_letra + datos.nie_numero + datos.nie_control, 226, 205);
+  escribir('JOSE LUIS ROBLES CRIADO',             361, 205);
+
+  // Nombre y apellidos
+  escribir(datos.firstname,                       136, 289);
+  escribir(datos.apellido1 + ' ' + datos.apellido2, 136, 312);
+
+  // Nombre a inscribir
+  escribir(datos.firstname,                       373, 499);
+
+  // Apellidos
+  escribir(datos.apellido1 + ' ' + datos.apellido2, 233, 700);
 
   return await pdfDoc.save();
 }
@@ -1054,7 +1085,7 @@ app.get('/rellenar-formulario', async (req, res) => {
     if (formulario === 'NAC') {
       pdfBytes = await rellenarConPython(rutaPdf, datos, 'NAC', datosFamiliar);
     } else if (formulario === 'JURA') {
-      pdfBytes = await rellenarConPython(rutaPdf, datos, 'JURA');
+      pdfBytes = await rellenarJURA(rutaPdf, datos);
     } else if (formulario === 'DESG2') {
       pdfBytes = await rellenarDESG2(rutaPdf, datos);
     } else if (formulario === 'DESG') {
