@@ -3,19 +3,34 @@ import sys, json, fitz
 def fill_pdf(input_path, output_path, data):
     doc = fitz.open(input_path)
     field_counts = {}
+    page_field_counts = {}
     
     for page in doc:
+        page_num = page.number
+        page_field_counts[page_num] = {}
+        
         for field in page.widgets():
             name = field.field_name
+            
+            # Contador global
             if name not in field_counts:
                 field_counts[name] = 0
             else:
                 field_counts[name] += 1
-            idx = field_counts[name]
-            key = name if idx == 0 else f"{name}#{idx}"
+            global_idx = field_counts[name]
+            global_key = name if global_idx == 0 else f"{name}#{global_idx}"
             
-            # Solo usar la clave exacta, no el nombre generico si hay indice
-            valor = data.get(key)
+            # Contador por página
+            if name not in page_field_counts[page_num]:
+                page_field_counts[page_num][name] = 0
+            else:
+                page_field_counts[page_num][name] += 1
+            page_idx = page_field_counts[page_num][name]
+            page_key_base = name if page_idx == 0 else f"{name}#{page_idx}"
+            page_key = f"p{page_num}_{page_key_base}"
+            
+            # Buscar valor: primero clave paginada, luego global
+            valor = data.get(page_key, data.get(global_key))
             
             if valor is None:
                 continue
