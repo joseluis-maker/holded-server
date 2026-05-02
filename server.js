@@ -450,6 +450,24 @@ const os = require('os');
 async function rellenarConPython(rutaPdf, datos, tipo, datosFamiliar = null) {
   const tmpOut = os.tmpdir() + '/formulario_' + Date.now() + '.pdf';
   
+  // Extraer tipo de via y nombre de via
+  const addressNAC = datos.address || '';
+  const tiposVia = ['AVENIDA','PASEO','PLAZA','CARRETERA','CAMINO','RONDA','TRAVESIA','CALLE'];
+  let tipoViaNAC = 'CALLE';
+  let nombreViaNAC = addressNAC;
+  for (const tv of tiposVia) {
+    if (addressNAC.toUpperCase().startsWith(tv)) {
+      tipoViaNAC = tv;
+      nombreViaNAC = addressNAC.substring(tv.length).trim();
+      break;
+    }
+  }
+  // Estado civil
+  const ecNAC = (datos.estado_civil || '').toLowerCase();
+  const ecMapNAC = {'soltero':0,'single':0,'casado':1,'married':1,'viudo':2,'widowed':2,'separado':3,'separated':3,'divorciado':4,'divorced':4};
+  const ecIdxNAC = ecMapNAC[ecNAC];
+  // Sexo
+  const sexoNAC = (datos.sexo || '').toLowerCase();
   let camposNAC = {
     'NombreInteresado':   datos.firstname,
     'Apellido1Interesado':datos.apellido1,
@@ -463,9 +481,9 @@ async function rellenarConPython(rutaPdf, datos, tipo, datosFamiliar = null) {
     'NombrePadre':        datos.nombre_padre,
     'NombreMadre':        datos.nombre_madre,
     'nacionalidadNIE':    datos.nacionalidad,
-    // Estado civil - se marca checkbox según valor
-    // Domicilio interesado (página 2)
-    'direccion':          datos.address,
+    // Domicilio
+    'Tipo via':           tipoViaNAC,
+    'direccion':          nombreViaNAC,
     'Nº_direccion_interesado': datos.numero_calle,
     'Piso_direccion_interesado': datos.piso_puerta,
     'localidadInteresado':datos.city,
@@ -473,27 +491,46 @@ async function rellenarConPython(rutaPdf, datos, tipo, datosFamiliar = null) {
     'CPInteresado':       datos.zip,
     'tfnoMovilInteresado':datos.phone,
     'emailInteresado':    datos.email,
-    // Representante con poder - Jose Luis Robles Criado
+    // Representante con poder
     'NombreRptePoder':    'JOSE LUIS',
     'ApellidoRptePoder':  'ROBLES CRIADO',
     'NIERptePoder':       '5326459K',
-    'direccionRptePoder': 'CALLE VELAZQUEZ',
+    'Tipo viarptepoder':  'CALLE',
+    'direccionRptePoder': 'VELAZQUEZ',
     'Nº_direccion_RptePoder': '126',
-    'Piso_direccion_RptePoder': '6D',
+    'Piso_direccion_RptePoder': '6',
+    'Letra_direccion_RptePoder': 'D',
     'localidadRptePoder': 'MADRID',
     'provinciaRptePoder': 'MADRID',
     'CPRptePoder':        '28006',
-    'tfnoMovilRptePoder': '619934302',
+    'tfnoFijoRptePoder':  '619934302',
     'emailRptePoder':     'INFO@ROBLESEXTRANJERIA.COM',
-    // Conyuge (si hay familiar asociado)
-    ...(datosFamiliar ? {
-      'NombreConyuge':     datosFamiliar.firstname,
-      'ApellidoConyuge':   datosFamiliar.apellido1,
-      'Apellido2Conyuge':  datosFamiliar.apellido2,
-      'NacionalidadConyuge': datosFamiliar.nacionalidad,
-    } : {}),
+    // Notificaciones
+    'Representnate_notificaciones': true,
+    'Consiente notificaciones electrónicas': true,
+    'TipoVia_not':        'CALLE',
+    'direccion_not':      'VELAZQUEZ',
+    'Nº_dirección_not':   '126',
+    'Piso_dirección_not': '6',
+    'Letra_dirección_not':'D',
+    'CPInteresado':       '28006',
+    // Pagina 5
+    'nombre_inscrip':     datos.firstname,
+    'No_invertir_1':      true,
+    'Apellidos_dos':      datos.apellido1 + ' ' + datos.apellido2,
+    'No_invertir_2':      true,
+    'Apellidos_un_apellido_madre': datos.apellido1 + ' ' + datos.apellido2,
   };
-
+  // Checkboxes dinamicos
+  if (ecIdxNAC !== undefined) camposNAC['EstadoCivil#' + ecIdxNAC] = true;
+  if (sexoNAC === 'h' || sexoNAC === 'hombre' || sexoNAC === 'man' || sexoNAC === 'male') camposNAC['sexo'] = true;
+  if (sexoNAC === 'm' || sexoNAC === 'mujer' || sexoNAC === 'woman' || sexoNAC === 'female') camposNAC['sexo#1'] = true;
+  if (datosFamiliar) {
+    camposNAC['NombreConyuge'] = datosFamiliar.firstname;
+    camposNAC['ApellidoConyuge'] = datosFamiliar.apellido1;
+    camposNAC['Apellido2Conyuge'] = datosFamiliar.apellido2;
+    camposNAC['NacionalidadConyuge'] = datosFamiliar.nacionalidad;
+  }
   let camposJURA = {
     'COMPARECE quien acredita ser': datos.firstname + ' ' + datos.apellido1 + ' ' + datos.apellido2,
     'nacidoa en':          datos.lugar_de_nacimiento,
@@ -508,10 +545,10 @@ async function rellenarConPython(rutaPdf, datos, tipo, datosFamiliar = null) {
   };
 
   const campos = tipo === 'NAC' ? camposNAC : camposJURA;
-  const dataJson = JSON.stringify(campos).replace(/'/g, "\'");
-  
-  execSync(`python3 ${__dirname}/fill_pdf.py "${rutaPdf}" "${tmpOut}" '${dataJson}'`);
-  
+  const tmpJson = os.tmpdir() + '/campos_' + Date.now() + '.json';
+  fs.writeFileSync(tmpJson, JSON.stringify(campos), 'utf8');
+  execSync(`python3 ${__dirname}/fill_pdf.py "${rutaPdf}" "${tmpOut}" "${tmpJson}"`);
+  try { fs.unlinkSync(tmpJson); } catch(e) {}
   const result = fs.readFileSync(tmpOut);
   fs.unlinkSync(tmpOut);
   return result;
