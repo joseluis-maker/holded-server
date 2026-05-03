@@ -273,12 +273,38 @@ app.get('/generar-contrato', async (req, res) => {
     const datos = prepararDatos(contacto);
     const cuentasArray = cuentas ? decodeURIComponent(cuentas).split(',') : ['espana'];
     const buffer = await generarContrato(datos, lineas, iva === 'si', decodeURIComponent(notas || ''), cuentasArray);
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    res.setHeader('Content-Disposition', `attachment; filename="${nombre}.docx"`);
-    res.send(buffer);
+    const nombre = (datos.apellido1 + '_' + datos.firstname + '_CONTRATO').replace(/\s+/g,'_').toUpperCase();
+    global.tmpFiles = global.tmpFiles || {};
+    const downloadId = nombre + '_' + Date.now();
+    global.tmpFiles[downloadId] = { buffer, nombre };
+    setTimeout(() => { delete global.tmpFiles[downloadId]; }, 300000);
+    res.send(`<html><body style="font-family:Arial,sans-serif;padding:30px;text-align:center">
+      <h3 style="color:#1F3864">Contrato generado</h3>
+      <p>Haz clic para descargar:</p>
+      <a href="/download-contrato/${encodeURIComponent(downloadId)}" 
+         style="background:#2E75B6;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;font-size:16px">
+        Descargar ${nombre}.docx
+      </a>
+    </body></html>`);
   } catch(e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+app.get('/download-contrato/:id', (req, res) => {
+  const file = (global.tmpFiles || {})[decodeURIComponent(req.params.id)];
+  if (!file) return res.status(404).send('Archivo no encontrado o expirado');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="${file.nombre}.docx"`);
+  res.send(file.buffer);
+});
+
+app.get('/download-contrato/:id', (req, res) => {
+  const file = (global.tmpFiles || {})[decodeURIComponent(req.params.id)];
+  if (!file) return res.status(404).send('Archivo no encontrado o expirado');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  res.setHeader('Content-Disposition', `attachment; filename="${file.nombre}.docx"`);
+  res.send(file.buffer);
 });
 
 app.get('/test-python', (req, res) => {
