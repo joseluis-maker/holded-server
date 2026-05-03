@@ -2,7 +2,7 @@ const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         AlignmentType, BorderStyle, WidthType, ShadingType, PageNumber,
         Header, Footer } = require('docx');
 
-async function generarContrato(datos, servicio, precio, conIva = false, notas = '', cuentas = ['espana']) {
+async function generarContrato(datos, lineas, conIva = false, notas = '', cuentas = ['espana']) {
   const azul = "1F3864";
   const azulMedio = "2E75B6";
   const gris = "F5F5F5";
@@ -23,11 +23,13 @@ async function generarContrato(datos, servicio, precio, conIva = false, notas = 
   const domicilio = `${datos.address || ''}, ${datos.city || ''}, ${datos.state || ''}`.trim().replace(/^,\s*|,\s*$/g, '');
   const email = datos.email || '';
 
-  const precioBase = parseFloat(precio) || 0;
+  const lineasValidas = lineas.filter(l => l.servicio);
+  const precioBase = lineasValidas.reduce((sum, l) => sum + (parseFloat(l.precio) || 0) * (parseInt(l.cantidad) || 1), 0);
   const iva = conIva ? precioBase * 0.21 : 0;
   const precioTotal = precioBase + iva;
   const precio50 = (precioBase / 2).toFixed(2);
   const precio50iva = conIva ? ((precioBase / 2) * 1.21).toFixed(2) : precio50;
+  const servicio = lineasValidas.map(l => l.cantidad > 1 ? l.cantidad + 'x ' + l.servicio : l.servicio).join(' + ');
 
   function t(text, opts = {}) {
     return new TextRun({ text: String(text || ''), size: 18, font: "Arial", color: negro, ...opts });
@@ -154,7 +156,10 @@ async function generarContrato(datos, servicio, precio, conIva = false, notas = 
           width: { size: 9026, type: WidthType.DXA }, columnWidths: [5000, 4026],
           rows: [
             fila("Concepto", "Importe", true),
-            fila(servicio, precioBase.toFixed(2) + " €"),
+            ...lineasValidas.map(l => fila(
+              (parseInt(l.cantidad) > 1 ? l.cantidad + ' × ' : '') + l.servicio,
+              ((parseFloat(l.precio) || 0) * (parseInt(l.cantidad) || 1)).toFixed(2) + " €"
+            )),
             ...(conIva ? [fila("IVA (21%)", iva.toFixed(2) + " €")] : []),
             fila("TOTAL", precioTotal.toFixed(2) + " €", false, true),
             fila("1.er pago — a la firma (50%)", precio50iva + " €", false, true),

@@ -263,15 +263,16 @@ app.get('/contactos-asociados', async (req, res) => {
 });
 
 app.get('/generar-contrato', async (req, res) => {
-  const { hs_object_id, servicio, precio, iva, notas, cuentas } = req.query;
-  if (!hs_object_id || !servicio || !precio) {
-    return res.status(400).json({ error: 'Faltan parámetros: hs_object_id, servicio, precio' });
+  const { hs_object_id, lineas: lineasRaw, iva, notas, cuentas } = req.query;
+  if (!hs_object_id || !lineasRaw) {
+    return res.status(400).json({ error: 'Faltan parámetros: hs_object_id, lineas' });
   }
+  const lineas = JSON.parse(decodeURIComponent(lineasRaw));
   try {
     const contacto = await obtenerDatosHubSpot(hs_object_id);
     const datos = prepararDatos(contacto);
     const cuentasArray = cuentas ? decodeURIComponent(cuentas).split(',') : ['espana'];
-    const buffer = await generarContrato(datos, decodeURIComponent(servicio), precio, iva === 'si', decodeURIComponent(notas || ''), cuentasArray);
+    const buffer = await generarContrato(datos, lineas, iva === 'si', decodeURIComponent(notas || ''), cuentasArray);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${nombre}.docx"`);
     res.send(buffer);
