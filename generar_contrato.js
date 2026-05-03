@@ -4,7 +4,7 @@ const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
 const fs = require('fs');
 const path = require('path');
 
-async function generarContrato(datos, lineas, conIva = false, notas = '', cuentas = ['espana']) {
+async function generarContrato(datos, lineas, numPagos = 2, conIva = false, notas = '', cuentas = ['espana']) {
   const logoPath = path.join(__dirname, 'logo.png');
   const logoData = fs.readFileSync(logoPath);
   const azul = "1F3864";
@@ -166,12 +166,18 @@ async function generarContrato(datos, lineas, conIva = false, notas = '', cuenta
             )),
             ...(conIva ? [fila("IVA (21%)", iva.toFixed(2) + " €")] : []),
             fila("TOTAL", precioTotal.toFixed(2) + " €", false, true),
-            fila("1.er pago — a la firma (50%)", precio50iva + " €", false, true),
-            fila("2.º pago — antes de la presentación (50%)", precio50iva + " €", false, true),
+            ...(numPagos === 1 ? [
+              fila("Pago único — a la firma", precioTotal.toFixed(2) + " €", false, true),
+            ] : [
+              fila("1.er pago — a la firma (50%)", precio50iva + " €", false, true),
+              fila("2.º pago — antes de la presentación (50%)", precio50iva + " €", false, true),
+            ]),
           ]
         }),
         espacio(),
-        parrafo([t("Conforme al artículo 35.2 LEC, el presente documento tiene carácter de presupuesto previo. El 50% se abonará a la firma y el 50% restante un día antes de la presentación ante el organismo competente.")]),
+        parrafo([t(numPagos === 1
+          ? "Conforme al artículo 35.2 LEC, el presente documento tiene carácter de presupuesto previo. El pago íntegro se abonará en el momento de la firma del presente contrato."
+          : "Conforme al artículo 35.2 LEC, el presente documento tiene carácter de presupuesto previo. El 50% se abonará a la firma y el 50% restante un día antes de la presentación ante el organismo competente.")]),
         parrafo([t("De conformidad con el artículo 7 de la Ley 7/2012, queda prohibido el pago en efectivo por importe igual o superior a 1.000 euros cuando alguna de las partes sea empresario o profesional.")]),
 
         seccion("IV. CUENTAS BANCARIAS PARA EL PAGO"),
