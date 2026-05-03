@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const app = express();
+const { generarContrato } = require('./generar_contrato');
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -258,6 +259,24 @@ app.get('/contactos-asociados', async (req, res) => {
     res.json(contactos);
   } catch (error) {
     res.json([]);
+  }
+});
+
+app.get('/generar-contrato', async (req, res) => {
+  const { hs_object_id, servicio, precio, iva, notas, cuentas } = req.query;
+  if (!hs_object_id || !servicio || !precio) {
+    return res.status(400).json({ error: 'Faltan parámetros: hs_object_id, servicio, precio' });
+  }
+  try {
+    const contacto = await obtenerDatosHubSpot(hs_object_id);
+    const datos = prepararDatos(contacto);
+    const cuentasArray = cuentas ? decodeURIComponent(cuentas).split(',') : ['espana'];
+    const buffer = await generarContrato(datos, decodeURIComponent(servicio), precio, iva === 'si', decodeURIComponent(notas || ''), cuentasArray);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombre}.docx"`);
+    res.send(buffer);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
