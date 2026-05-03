@@ -307,6 +307,21 @@ app.get('/download-contrato/:id', (req, res) => {
   res.send(file.buffer);
 });
 
+app.get('/servicios-holded', async (req, res) => {
+  try {
+    const resp = await axios.get('https://api.holded.com/api/invoicing/v1/services', {
+      headers: { key: HOLDED_API_KEY }
+    });
+    const servicios = resp.data
+      .filter(s => s.name && s.price >= 0)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(s => ({ id: s.id, nombre: s.name, precio: s.price }));
+    res.json(servicios);
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/test-python', (req, res) => {
   try {
     const { execSync } = require('child_process');
