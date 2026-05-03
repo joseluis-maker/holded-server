@@ -1,8 +1,12 @@
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         AlignmentType, BorderStyle, WidthType, ShadingType, PageNumber,
-        Header, Footer } = require('docx');
+        Header, Footer, ImageRun } = require('docx');
+const fs = require('fs');
+const path = require('path');
 
 async function generarContrato(datos, lineas, conIva = false, notas = '', cuentas = ['espana']) {
+  const logoPath = path.join(__dirname, 'logo.png');
+  const logoData = fs.readFileSync(logoPath);
   const azul = "1F3864";
   const azulMedio = "2E75B6";
   const gris = "F5F5F5";
@@ -109,7 +113,7 @@ async function generarContrato(datos, lineas, conIva = false, notas = '', cuenta
         default: new Footer({ children: [
           new Paragraph({ border: { top: { style: BorderStyle.SINGLE, size: 4, color: azulMedio } },
             alignment: AlignmentType.CENTER, children: [
-              new TextRun({ text: "info@roblesextranjeria.com  |  Página ", size: 14, font: "Arial", color: "666666" }),
+              new TextRun({ text: "roblesextranjeria.com  |  919 999 952  |  Página ", size: 14, font: "Arial", color: "666666" }),
               new TextRun({ children: [PageNumber.CURRENT], size: 14, font: "Arial", color: "666666" }),
               new TextRun({ text: " de ", size: 14, font: "Arial", color: "666666" }),
               new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 14, font: "Arial", color: "666666" }),
