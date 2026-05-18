@@ -434,7 +434,17 @@ const MAPA_EX18 = {
 
 function prepararDatos(p) {
   const nie = p.nie || '';
-  const fecha = p.date_of_birth || p.fecha_de_nacimiento || '';
+  const fechaRaw = p.date_of_birth || p.fecha_de_nacimiento || '';
+  // HubSpot tipo Fecha devuelve timestamp en ms o string YYYY-MM-DD
+  let fechaStr = fechaRaw;
+  if (/^\d{10,}$/.test(fechaRaw)) {
+    const d = new Date(parseInt(fechaRaw));
+    fechaStr = `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
+  } else if (/^\d{4}-\d{2}-\d{2}$/.test(fechaRaw)) {
+    const p2 = fechaRaw.split('-');
+    fechaStr = `${p2[2]}/${p2[1]}/${p2[0]}`;
+  }
+  const fecha = fechaStr;
   let fecha_dia = '', fecha_mes = '', fecha_anio = '';
   const mesesTexto = { enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',octubre:'10',noviembre:'11',diciembre:'12' };
   if (/[a-zA-Z]/.test(fecha)) {
